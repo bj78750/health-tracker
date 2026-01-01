@@ -1,12 +1,5 @@
 [build]
-     functions = "netlify/functions"
-   
-   [functions]
-     directory = "netlify/functions"
-```
-3. Re-upload the entire folder
+  functions = "netlify/functions"
 
-**After deploying, you should see:**
-```
-✓ 3 new files uploaded
-✓ 1 function deployed: fetch-oura
+[functions]
+  directory = "netlify/functions"
