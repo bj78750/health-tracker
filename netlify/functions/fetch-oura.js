@@ -37,8 +37,8 @@ exports.handler = async function(event, context) {
     // Use today's date if not provided
     const targetDate = date || new Date().toISOString().split('T')[0];
 
-    // Fetch data from all three Oura endpoints in parallel
-    const [sleepResponse, readinessResponse, activityResponse] = await Promise.all([
+    // Fetch data from all Oura endpoints in parallel
+    const [sleepResponse, readinessResponse, activityResponse, sleepTimeResponse] = await Promise.all([
       fetch(`https://api.ouraring.com/v2/usercollection/daily_sleep?start_date=${targetDate}&end_date=${targetDate}`, {
         headers: { 'Authorization': `Bearer ${ouraToken}` }
       }),
@@ -47,6 +47,9 @@ exports.handler = async function(event, context) {
       }),
       fetch(`https://api.ouraring.com/v2/usercollection/daily_activity?start_date=${targetDate}&end_date=${targetDate}`, {
         headers: { 'Authorization': `Bearer ${ouraToken}` }
+      }),
+      fetch(`https://api.ouraring.com/v2/usercollection/sleep?start_date=${targetDate}&end_date=${targetDate}`, {
+        headers: { 'Authorization': `Bearer ${ouraToken}` }
       })
     ]);
 
@@ -54,11 +57,16 @@ exports.handler = async function(event, context) {
     const sleepData = sleepResponse.ok ? await sleepResponse.json() : null;
     const readinessData = readinessResponse.ok ? await readinessResponse.json() : null;
     const activityData = activityResponse.ok ? await activityResponse.json() : null;
+    const sleepTimeData = sleepTimeResponse.ok ? await sleepTimeResponse.json() : null;
+
+    // Extract total sleep duration from sleep time data
+    const sleepDuration = sleepTimeData?.data?.[0]?.total_sleep_duration || null;
 
     // Check if any data was found
     const hasData = (sleepData?.data?.length > 0) || 
                     (readinessData?.data?.length > 0) || 
-                    (activityData?.data?.length > 0);
+                    (activityData?.data?.length > 0) ||
+                    (sleepTimeData?.data?.length > 0);
 
     // If no data for today, try yesterday
     if (!hasData) {
@@ -66,7 +74,7 @@ exports.handler = async function(event, context) {
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayDate = yesterday.toISOString().split('T')[0];
 
-      const [sleepYesterday, readinessYesterday, activityYesterday] = await Promise.all([
+      const [sleepYesterday, readinessYesterday, activityYesterday, sleepTimeYesterday] = await Promise.all([
         fetch(`https://api.ouraring.com/v2/usercollection/daily_sleep?start_date=${yesterdayDate}&end_date=${yesterdayDate}`, {
           headers: { 'Authorization': `Bearer ${ouraToken}` }
         }),
@@ -75,12 +83,16 @@ exports.handler = async function(event, context) {
         }),
         fetch(`https://api.ouraring.com/v2/usercollection/daily_activity?start_date=${yesterdayDate}&end_date=${yesterdayDate}`, {
           headers: { 'Authorization': `Bearer ${ouraToken}` }
+        }),
+        fetch(`https://api.ouraring.com/v2/usercollection/sleep?start_date=${yesterdayDate}&end_date=${yesterdayDate}`, {
+          headers: { 'Authorization': `Bearer ${ouraToken}` }
         })
       ]);
 
       const sleepYesterdayData = sleepYesterday.ok ? await sleepYesterday.json() : null;
       const readinessYesterdayData = readinessYesterday.ok ? await readinessYesterday.json() : null;
       const activityYesterdayData = activityYesterday.ok ? await activityYesterday.json() : null;
+      const sleepTimeYesterdayData = sleepTimeYesterday.ok ? await sleepTimeYesterday.json() : null;
 
       return {
         statusCode: 200,
@@ -93,6 +105,7 @@ exports.handler = async function(event, context) {
           sleep: sleepYesterdayData?.data?.[0] || null,
           readiness: readinessYesterdayData?.data?.[0] || null,
           activity: activityYesterdayData?.data?.[0] || null,
+          sleepDuration: sleepTimeYesterdayData?.data?.[0]?.total_sleep_duration || null,
           dataDate: yesterdayDate,
           note: 'Using yesterday\'s data (today not yet available)'
         })
@@ -111,6 +124,7 @@ exports.handler = async function(event, context) {
         sleep: sleepData?.data?.[0] || null,
         readiness: readinessData?.data?.[0] || null,
         activity: activityData?.data?.[0] || null,
+        sleepDuration: sleepDuration,
         dataDate: targetDate
       })
     };

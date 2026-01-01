@@ -791,6 +791,7 @@
                     sleep: data.sleep,
                     readiness: data.readiness,
                     activity: data.activity,
+                    sleepDuration: data.sleepDuration,
                     dataDate: data.dataDate,
                     note: data.note
                 };
@@ -811,8 +812,8 @@
             }
 
             const sleepScore = ouraData.sleep?.score || 'N/A';
-            const sleepHours = ouraData.sleep?.total_sleep_duration ? 
-                Math.round(ouraData.sleep.total_sleep_duration / 3600 * 10) / 10 : 'N/A';
+            const sleepHours = ouraData.sleepDuration ? 
+                (ouraData.sleepDuration / 3600).toFixed(1) : 'N/A';
             const readinessScore = ouraData.readiness?.score || 'N/A';
             const activityScore = ouraData.activity?.score || 'N/A';
             const steps = ouraData.activity?.steps || 'N/A';
