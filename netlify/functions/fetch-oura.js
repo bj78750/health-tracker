@@ -2,6 +2,19 @@
 // Serverless function to fetch Oura data without CORS issues
 
 exports.handler = async function(event, context) {
+  // Handle CORS preflight requests
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS'
+      },
+      body: ''
+    };
+  }
+
   // Only allow POST requests
   if (event.httpMethod !== 'POST') {
     return {
@@ -65,6 +78,10 @@ exports.handler = async function(event, context) {
         })
       ]);
 
+      const sleepYesterdayData = sleepYesterday.ok ? await sleepYesterday.json() : null;
+      const readinessYesterdayData = readinessYesterday.ok ? await readinessYesterday.json() : null;
+      const activityYesterdayData = activityYesterday.ok ? await activityYesterday.json() : null;
+
       return {
         statusCode: 200,
         headers: {
@@ -73,9 +90,9 @@ exports.handler = async function(event, context) {
           'Access-Control-Allow-Headers': 'Content-Type'
         },
         body: JSON.stringify({
-          sleep: sleepYesterday.ok ? (await sleepYesterday.json()).data?.[0] : null,
-          readiness: readinessYesterday.ok ? (await readinessYesterday.json()).data?.[0] : null,
-          activity: activityYesterday.ok ? (await activityYesterday.json()).data?.[0] : null,
+          sleep: sleepYesterdayData?.data?.[0] || null,
+          readiness: readinessYesterdayData?.data?.[0] || null,
+          activity: activityYesterdayData?.data?.[0] || null,
           dataDate: yesterdayDate,
           note: 'Using yesterday\'s data (today not yet available)'
         })
@@ -112,21 +129,4 @@ exports.handler = async function(event, context) {
       })
     };
   }
-};
-
-// Handle CORS preflight requests
-exports.handler = async function(event, context) {
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      },
-      body: ''
-    };
-  }
-
-  return exports.handler(event, context);
 };
