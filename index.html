@@ -1128,15 +1128,11 @@
                 }
                 
                 ouraData = {
-                    sleep: data.sleep,
-                    readiness: data.readiness,
-                    activity: data.activity,
-                    sleepHours: data.sleepHours,
-                    steps: data.steps,
-                    lowestRestingHR: data.lowestRestingHR,
-                    activeCalories: data.activeCalories,
-                    dataDate: data.dataDate,
-                    note: data.note
+                    sleepScore: data.sleepScore,
+                    totalSleep: data.totalSleep,
+                    readinessScore: data.readinessScore,
+                    previousDayActivity: data.previousDayActivity,
+                    dataDate: data.dataDate
                 };
 
                 displayOuraData();
@@ -1156,48 +1152,42 @@
             const ouraSection = document.getElementById('ouraSection');
             if (!ouraSection) return;
             
-            if (!ouraData || (!ouraData.sleep && !ouraData.readiness)) {
+            if (!ouraData || (!ouraData.sleepScore && !ouraData.readinessScore)) {
                 ouraSection.innerHTML = '';
                 return;
             }
 
             // Static display - same for morning and evening
-            // These scores are for the current day (Sleep/Readiness calculated in morning from last night)
-            const sleepScore = ouraData.sleep?.score || 'N/A';
-            const sleepHours = ouraData.sleepHours || 'N/A';
-            const readinessScore = ouraData.readiness?.score || 'N/A';
-            const lowestHR = ouraData.lowestRestingHR || 'N/A';
-
-            const noteHtml = ouraData.note ? 
-                `<div style="background: rgba(255,255,255,0.3); padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 13px;">
-                    ℹ️ ${escapeHtml(ouraData.note)}
-                </div>` : '';
+            // These scores are for the current day (calculated in morning from previous night/day)
+            const sleepScore = ouraData.sleepScore || 'N/A';
+            const totalSleep = ouraData.totalSleep || 'N/A';
+            const readinessScore = ouraData.readinessScore || 'N/A';
+            const previousDayActivity = ouraData.previousDayActivity || 'N/A';
 
             const dataDateStr = ouraData.dataDate ? escapeHtml(ouraData.dataDate) : '';
 
-            // Static display - always show the same metrics
+            // Static display - always show the same 4 metrics
             ouraSection.innerHTML = `
                 <div class="oura-summary">
                     <h3>📱 Oura Ring Data${dataDateStr ? ` (${dataDateStr})` : ''}</h3>
                     <div class="oura-stats">
                         <div class="oura-stat">
+                            <div class="oura-stat-label">Readiness Score</div>
+                            <div class="oura-stat-value">${escapeHtml(String(readinessScore))}</div>
+                        </div>
+                        <div class="oura-stat">
+                            <div class="oura-stat-label">Previous Day Activity</div>
+                            <div class="oura-stat-value">${escapeHtml(String(previousDayActivity))}</div>
+                        </div>
+                        <div class="oura-stat">
                             <div class="oura-stat-label">Sleep Score</div>
                             <div class="oura-stat-value">${escapeHtml(String(sleepScore))}</div>
                         </div>
                         <div class="oura-stat">
-                            <div class="oura-stat-label">Sleep Hours</div>
-                            <div class="oura-stat-value">${escapeHtml(String(sleepHours))}</div>
-                        </div>
-                        <div class="oura-stat">
-                            <div class="oura-stat-label">Readiness</div>
-                            <div class="oura-stat-value">${escapeHtml(String(readinessScore))}</div>
-                        </div>
-                        <div class="oura-stat">
-                            <div class="oura-stat-label">Lowest Resting HR</div>
-                            <div class="oura-stat-value">${escapeHtml(String(lowestHR))}</div>
+                            <div class="oura-stat-label">Total Sleep</div>
+                            <div class="oura-stat-value">${escapeHtml(String(totalSleep))}</div>
                         </div>
                     </div>
-                    ${noteHtml}
                 </div>
             `;
         }
@@ -1237,10 +1227,10 @@
 
                 // Add Oura data (only the 4 static metrics)
                 if (ouraData) {
-                    data['Oura Sleep Score'] = ouraData.sleep?.score;
-                    data['Oura Sleep Hours'] = ouraData.sleepHours;
-                    data['Oura Readiness Score'] = ouraData.readiness?.score;
-                    data['Oura Lowest Resting HR'] = ouraData.lowestRestingHR;
+                    data['Oura Readiness Score'] = ouraData.readinessScore;
+                    data['Oura Previous Day Activity'] = ouraData.previousDayActivity;
+                    data['Oura Sleep Score'] = ouraData.sleepScore;
+                    data['Oura Total Sleep'] = ouraData.totalSleep;
                 }
 
                 // Validate rating for evening mode

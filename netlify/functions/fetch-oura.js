@@ -59,59 +59,31 @@ exports.handler = async function(event, context) {
       };
     }
 
-    // Oura's data model:
+    // Oura's data model for static metrics:
     // - Sleep Score and Readiness are calculated in the morning and associated with the CURRENT day
-    //   (they represent the previous night's sleep, but the record is dated for today)
-    // - Sleep Hours come from the sleep data for the previous night
-    // - Lowest Resting HR is from the previous day (can't be known until day is complete)
-    // - Activity, Steps, Calories are for the current day (in progress)
+    //   (they represent the previous night's sleep/previous day's activity, but the record is dated for today)
+    // - All metrics are static and don't change during the day
+    // - We only track: Readiness Score, Previous Day Activity, Sleep Score, Total Sleep
     
     const today = new Date();
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    
     const todayDate = date || today.toISOString().split('T')[0];
-    const yesterdayDate = yesterday.toISOString().split('T')[0];
     
-    // Always fetch today's sleep/readiness (these are calculated in the morning for last night)
-    // Always fetch today's activity (current day's activity)
-    // Fetch yesterday's sleep duration and heart rate (for the night that ended)
-    const sleepReadinessDate = todayDate; // Sleep Score and Readiness are dated for today
-    const sleepDurationDate = yesterdayDate; // Sleep hours are from last night
-    const heartrateDate = yesterdayDate; // Lowest HR is from previous day
-    const activityDate = todayDate; // Activity is for current day
+    // All metrics come from today's date (static metrics calculated in the morning)
+    const targetDate = todayDate;
 
-    // Fetch sleep and readiness data (today's date - these are calculated in the morning)
+    // Fetch only the static metrics we need (all from today's date)
     const [sleepResponse, readinessResponse] = await Promise.all([
-      fetch(`https://api.ouraring.com/v2/usercollection/daily_sleep?start_date=${sleepReadinessDate}&end_date=${sleepReadinessDate}`, {
+      fetch(`https://api.ouraring.com/v2/usercollection/daily_sleep?start_date=${targetDate}&end_date=${targetDate}`, {
         headers: { 'Authorization': `Bearer ${ouraToken}` }
       }),
-      fetch(`https://api.ouraring.com/v2/usercollection/daily_readiness?start_date=${sleepReadinessDate}&end_date=${sleepReadinessDate}`, {
+      fetch(`https://api.ouraring.com/v2/usercollection/daily_readiness?start_date=${targetDate}&end_date=${targetDate}`, {
         headers: { 'Authorization': `Bearer ${ouraToken}` }
       })
     ]);
-    
-    // Fetch sleep duration from yesterday (the actual night that ended)
-    const sleepTimeResponse = await fetch(`https://api.ouraring.com/v2/usercollection/sleep?start_date=${sleepDurationDate}&end_date=${sleepDurationDate}`, {
-      headers: { 'Authorization': `Bearer ${ouraToken}` }
-    });
-    
-    // Fetch heart rate from yesterday (for lowest resting HR)
-    const heartrateResponse = await fetch(`https://api.ouraring.com/v2/usercollection/heartrate?start_date=${heartrateDate}&end_date=${heartrateDate}`, {
-      headers: { 'Authorization': `Bearer ${ouraToken}` }
-    });
-
-    // Fetch activity data (for the day in progress/completed)
-    const activityResponse = await fetch(`https://api.ouraring.com/v2/usercollection/daily_activity?start_date=${activityDate}&end_date=${activityDate}`, {
-      headers: { 'Authorization': `Bearer ${ouraToken}` }
-    });
 
     // Parse responses with error handling
     let sleepData = null;
     let readinessData = null;
-    let activityData = null;
-    let sleepTimeData = null;
-    let heartrateData = null;
     
     try {
       sleepData = sleepResponse.ok ? await sleepResponse.json() : null;
@@ -130,87 +102,23 @@ exports.handler = async function(event, context) {
     } catch (e) {
       console.error('Error parsing readiness data:', e);
     }
-    
-    try {
-      activityData = activityResponse.ok ? await activityResponse.json() : null;
-      if (!activityResponse.ok && activityResponse.status !== 404) {
-        console.error('Activity API error:', activityResponse.status, await activityResponse.text());
-      }
-    } catch (e) {
-      console.error('Error parsing activity data:', e);
-    }
-    
-    try {
-      sleepTimeData = sleepTimeResponse.ok ? await sleepTimeResponse.json() : null;
-      if (!sleepTimeResponse.ok && sleepTimeResponse.status !== 404) {
-        console.error('Sleep time API error:', sleepTimeResponse.status, await sleepTimeResponse.text());
-      }
-    } catch (e) {
-      console.error('Error parsing sleep time data:', e);
-    }
-    
-    try {
-      heartrateData = heartrateResponse.ok ? await heartrateResponse.json() : null;
-      if (!heartrateResponse.ok && heartrateResponse.status !== 404) {
-        console.error('Heart rate API error:', heartrateResponse.status, await heartrateResponse.text());
-      }
-    } catch (e) {
-      console.error('Error parsing heart rate data:', e);
-    }
 
-    // Extract sleep data
+    // Extract the 4 static metrics we track
     const sleep = sleepData?.data?.[0] || null;
     const readiness = readinessData?.data?.[0] || null;
-    const activity = activityData?.data?.[0] || null;
     
-    // Get sleep duration from yesterday's sleep data (the actual night)
-    // Try multiple field names and sources
-    let sleepDuration = null;
-    
-    // First try the sleep endpoint (most reliable for duration)
-    if (sleepTimeData?.data && sleepTimeData.data.length > 0) {
-      const sleepRecord = sleepTimeData.data[0];
-      sleepDuration = sleepRecord.total_sleep_duration || 
-                      sleepRecord.total_sleep_time || 
-                      sleepRecord.duration || 
-                      null;
-    }
-    
-    // Fallback to daily_sleep if available
-    if (!sleepDuration && sleep) {
-      sleepDuration = sleep.total_sleep_duration || 
-                      sleep.sleep_duration || 
-                      sleep.duration ||
-                      null;
-    }
-    
-    // Convert sleep duration from seconds to hours (rounded to 1 decimal)
-    const sleepHours = sleepDuration ? (parseFloat(sleepDuration) / 3600).toFixed(1) : null;
-    
-    // Extract activity metrics - check multiple possible field names
-    const steps = activity?.steps || activity?.step_count || null;
-    const activeCalories = activity?.active_calories || activity?.cal_active || null;
-    
-    // Process heart rate data to find lowest resting HR
-    let lowestRestingHR = null;
-    if (heartrateData?.data && heartrateData.data.length > 0) {
-      // Filter for sleep/rest sources and find minimum
-      const restingReadings = heartrateData.data
-        .filter(reading => {
-          const source = reading.source || reading.type;
-          return source === 'sleep' || source === 'rest' || source === 'session';
-        })
-        .map(reading => reading.bpm || reading.heart_rate)
-        .filter(bpm => bpm != null && !isNaN(bpm));
-      
-      if (restingReadings.length > 0) {
-        lowestRestingHR = Math.min(...restingReadings);
-      }
-    }
+    // Extract specific fields
+    const sleepScore = sleep?.score || null;
+    const totalSleep = sleep?.contributors?.total_sleep || null;
+    const readinessScore = readiness?.score || null;
+    const previousDayActivity = readiness?.contributors?.previous_day_activity || null;
 
-    // If no sleep/readiness data for today, try yesterday as fallback (data might not be processed yet)
+    // If no data for today, try yesterday as fallback (data might not be processed yet)
     if (!sleep && !readiness) {
-      const fallbackDate = yesterdayDate;
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const fallbackDate = yesterday.toISOString().split('T')[0];
+      
       const fallbackSleepResponse = await fetch(`https://api.ouraring.com/v2/usercollection/daily_sleep?start_date=${fallbackDate}&end_date=${fallbackDate}`, {
         headers: { 'Authorization': `Bearer ${ouraToken}` }
       });
@@ -222,7 +130,6 @@ exports.handler = async function(event, context) {
       const fallbackReadinessData = fallbackReadinessResponse.ok ? await fallbackReadinessResponse.json() : null;
       
       if (fallbackSleepData?.data?.[0] || fallbackReadinessData?.data?.[0]) {
-        // Use fallback data but keep today's activity
         const fallbackSleep = fallbackSleepData?.data?.[0] || null;
         const fallbackReadiness = fallbackReadinessData?.data?.[0] || null;
         
@@ -234,23 +141,17 @@ exports.handler = async function(event, context) {
             'Access-Control-Allow-Headers': 'Content-Type'
           },
           body: JSON.stringify({
-            sleep: fallbackSleep,
-            readiness: fallbackReadiness,
-            activity: activity,
-            sleepDuration: sleepDuration,
-            sleepHours: sleepHours,
-            steps: steps,
-            lowestRestingHR: lowestRestingHR,
-            activeCalories: activeCalories,
-            dataDate: fallbackDate,
-            activityDate: activityDate,
-            note: 'Using yesterday\'s sleep/readiness data (today\'s not yet processed)'
+            sleepScore: fallbackSleep?.score || null,
+            totalSleep: fallbackSleep?.contributors?.total_sleep || null,
+            readinessScore: fallbackReadiness?.score || null,
+            previousDayActivity: fallbackReadiness?.contributors?.previous_day_activity || null,
+            dataDate: fallbackDate
           })
         };
       }
     }
 
-    // Return the combined data
+    // Return only the 4 static metrics we track
     return {
       statusCode: 200,
       headers: {
@@ -259,16 +160,11 @@ exports.handler = async function(event, context) {
         'Access-Control-Allow-Headers': 'Content-Type'
       },
       body: JSON.stringify({
-        sleep: sleep,
-        readiness: readiness,
-        activity: activity,
-        sleepDuration: sleepDuration,
-        sleepHours: sleepHours,
-        steps: steps,
-        lowestRestingHR: lowestRestingHR,
-        activeCalories: activeCalories,
-        dataDate: todayDate, // Sleep Score and Readiness are always for today
-        note: `Sleep/Readiness from ${todayDate} (calculated from last night), Sleep Hours/HR from ${yesterdayDate}`
+        sleepScore: sleepScore,
+        totalSleep: totalSleep,
+        readinessScore: readinessScore,
+        previousDayActivity: previousDayActivity,
+        dataDate: targetDate
       })
     };
 
