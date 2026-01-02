@@ -28,8 +28,8 @@ exports.handler = async function(event, context) {
   }
 
   try {
-    // Get the Oura token and date from the request
-    const { ouraToken, date } = JSON.parse(event.body);
+    // Get the Oura token and mode from the request
+    const { ouraToken, mode, date } = JSON.parse(event.body);
 
     if (!ouraToken) {
       return {
@@ -42,27 +42,41 @@ exports.handler = async function(event, context) {
       };
     }
 
-    // Use today's date if not provided
-    const targetDate = date || new Date().toISOString().split('T')[0];
+    // Determine dates based on mode
+    // Morning: needs yesterday's sleep/readiness (last night) and today's activity (in progress)
+    // Evening: needs today's sleep/readiness (last night) and today's activity (completed)
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    const todayDate = date || today.toISOString().split('T')[0];
+    const yesterdayDate = yesterday.toISOString().split('T')[0];
+    
+    // For morning check-ins, we want yesterday's sleep data (the night that just ended)
+    // For evening check-ins, we want today's activity data (the day that's ending)
+    const sleepDate = mode === 'morning' ? yesterdayDate : todayDate;
+    const activityDate = todayDate; // Always use today for activity (it's the day in progress or just completed)
 
-    // Fetch data from all Oura endpoints in parallel
-    const [sleepResponse, readinessResponse, activityResponse, sleepTimeResponse, heartrateResponse] = await Promise.all([
-      fetch(`https://api.ouraring.com/v2/usercollection/daily_sleep?start_date=${targetDate}&end_date=${targetDate}`, {
+    // Fetch sleep and readiness data (from the night that ended)
+    const [sleepResponse, readinessResponse, sleepTimeResponse, heartrateResponse] = await Promise.all([
+      fetch(`https://api.ouraring.com/v2/usercollection/daily_sleep?start_date=${sleepDate}&end_date=${sleepDate}`, {
         headers: { 'Authorization': `Bearer ${ouraToken}` }
       }),
-      fetch(`https://api.ouraring.com/v2/usercollection/daily_readiness?start_date=${targetDate}&end_date=${targetDate}`, {
+      fetch(`https://api.ouraring.com/v2/usercollection/daily_readiness?start_date=${sleepDate}&end_date=${sleepDate}`, {
         headers: { 'Authorization': `Bearer ${ouraToken}` }
       }),
-      fetch(`https://api.ouraring.com/v2/usercollection/daily_activity?start_date=${targetDate}&end_date=${targetDate}`, {
+      fetch(`https://api.ouraring.com/v2/usercollection/sleep?start_date=${sleepDate}&end_date=${sleepDate}`, {
         headers: { 'Authorization': `Bearer ${ouraToken}` }
       }),
-      fetch(`https://api.ouraring.com/v2/usercollection/sleep?start_date=${targetDate}&end_date=${targetDate}`, {
-        headers: { 'Authorization': `Bearer ${ouraToken}` }
-      }),
-      fetch(`https://api.ouraring.com/v2/usercollection/heartrate?start_date=${targetDate}&end_date=${targetDate}`, {
+      fetch(`https://api.ouraring.com/v2/usercollection/heartrate?start_date=${sleepDate}&end_date=${sleepDate}`, {
         headers: { 'Authorization': `Bearer ${ouraToken}` }
       })
     ]);
+
+    // Fetch activity data (for the day in progress/completed)
+    const activityResponse = await fetch(`https://api.ouraring.com/v2/usercollection/daily_activity?start_date=${activityDate}&end_date=${activityDate}`, {
+      headers: { 'Authorization': `Bearer ${ouraToken}` }
+    });
 
     // Parse responses
     const sleepData = sleepResponse.ok ? await sleepResponse.json() : null;
@@ -71,111 +85,78 @@ exports.handler = async function(event, context) {
     const sleepTimeData = sleepTimeResponse.ok ? await sleepTimeResponse.json() : null;
     const heartrateData = heartrateResponse.ok ? await heartrateResponse.json() : null;
 
-    // Extract and process data
+    // Extract sleep data
     const sleep = sleepData?.data?.[0] || null;
     const readiness = readinessData?.data?.[0] || null;
     const activity = activityData?.data?.[0] || null;
-    const sleepDuration = sleepTimeData?.data?.[0]?.total_sleep_duration || null;
+    
+    // Try multiple sources for sleep duration
+    // 1. From sleep endpoint (total_sleep_duration)
+    // 2. From daily_sleep endpoint (total_sleep_duration or sleep_duration)
+    let sleepDuration = sleepTimeData?.data?.[0]?.total_sleep_duration || null;
+    if (!sleepDuration && sleep) {
+      sleepDuration = sleep.total_sleep_duration || sleep.sleep_duration || null;
+    }
     
     // Convert sleep duration from seconds to hours (rounded to 1 decimal)
-    const sleepHours = sleepDuration ? (sleepDuration / 3600).toFixed(1) : null;
+    const sleepHours = sleepDuration ? (parseFloat(sleepDuration) / 3600).toFixed(1) : null;
     
-    // Extract activity metrics
-    const steps = activity?.steps || null;
-    const activeCalories = activity?.active_calories || null;
+    // Extract activity metrics - check multiple possible field names
+    const steps = activity?.steps || activity?.step_count || null;
+    const activeCalories = activity?.active_calories || activity?.cal_active || null;
     
     // Process heart rate data to find lowest resting HR
     let lowestRestingHR = null;
     if (heartrateData?.data && heartrateData.data.length > 0) {
       // Filter for sleep/rest sources and find minimum
       const restingReadings = heartrateData.data
-        .filter(reading => reading.source === 'sleep' || reading.source === 'rest')
-        .map(reading => reading.bpm)
-        .filter(bpm => bpm != null);
+        .filter(reading => {
+          const source = reading.source || reading.type;
+          return source === 'sleep' || source === 'rest' || source === 'session';
+        })
+        .map(reading => reading.bpm || reading.heart_rate)
+        .filter(bpm => bpm != null && !isNaN(bpm));
       
       if (restingReadings.length > 0) {
         lowestRestingHR = Math.min(...restingReadings);
       }
     }
 
-    // Check if any data was found
-    const hasData = (sleepData?.data?.length > 0) || 
-                    (readinessData?.data?.length > 0) || 
-                    (activityData?.data?.length > 0) ||
-                    (sleepTimeData?.data?.length > 0);
-
-    // If no data for today, try yesterday
-    if (!hasData) {
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayDate = yesterday.toISOString().split('T')[0];
-
-      const [sleepYesterday, readinessYesterday, activityYesterday, sleepTimeYesterday, heartrateYesterday] = await Promise.all([
-        fetch(`https://api.ouraring.com/v2/usercollection/daily_sleep?start_date=${yesterdayDate}&end_date=${yesterdayDate}`, {
-          headers: { 'Authorization': `Bearer ${ouraToken}` }
-        }),
-        fetch(`https://api.ouraring.com/v2/usercollection/daily_readiness?start_date=${yesterdayDate}&end_date=${yesterdayDate}`, {
-          headers: { 'Authorization': `Bearer ${ouraToken}` }
-        }),
-        fetch(`https://api.ouraring.com/v2/usercollection/daily_activity?start_date=${yesterdayDate}&end_date=${yesterdayDate}`, {
-          headers: { 'Authorization': `Bearer ${ouraToken}` }
-        }),
-        fetch(`https://api.ouraring.com/v2/usercollection/sleep?start_date=${yesterdayDate}&end_date=${yesterdayDate}`, {
-          headers: { 'Authorization': `Bearer ${ouraToken}` }
-        }),
-        fetch(`https://api.ouraring.com/v2/usercollection/heartrate?start_date=${yesterdayDate}&end_date=${yesterdayDate}`, {
-          headers: { 'Authorization': `Bearer ${ouraToken}` }
-        })
-      ]);
-
-      const sleepYesterdayData = sleepYesterday.ok ? await sleepYesterday.json() : null;
-      const readinessYesterdayData = readinessYesterday.ok ? await readinessYesterday.json() : null;
-      const activityYesterdayData = activityYesterday.ok ? await activityYesterday.json() : null;
-      const sleepTimeYesterdayData = sleepTimeYesterday.ok ? await sleepTimeYesterday.json() : null;
-      const heartrateYesterdayData = heartrateYesterday.ok ? await heartrateYesterday.json() : null;
-
-      // Process yesterday's data
-      const yesterdaySleep = sleepYesterdayData?.data?.[0] || null;
-      const yesterdayReadiness = readinessYesterdayData?.data?.[0] || null;
-      const yesterdayActivity = activityYesterdayData?.data?.[0] || null;
-      const yesterdaySleepDuration = sleepTimeYesterdayData?.data?.[0]?.total_sleep_duration || null;
-      const yesterdaySleepHours = yesterdaySleepDuration ? (yesterdaySleepDuration / 3600).toFixed(1) : null;
-      const yesterdaySteps = yesterdayActivity?.steps || null;
-      const yesterdayActiveCalories = yesterdayActivity?.active_calories || null;
+    // If no sleep data found for the target date, try the other date as fallback
+    if (!sleep && !readiness && mode === 'morning') {
+      // Try today's data as fallback
+      const fallbackSleepResponse = await fetch(`https://api.ouraring.com/v2/usercollection/daily_sleep?start_date=${todayDate}&end_date=${todayDate}`, {
+        headers: { 'Authorization': `Bearer ${ouraToken}` }
+      });
+      const fallbackReadinessResponse = await fetch(`https://api.ouraring.com/v2/usercollection/daily_readiness?start_date=${todayDate}&end_date=${todayDate}`, {
+        headers: { 'Authorization': `Bearer ${ouraToken}` }
+      });
       
-      // Process yesterday's heart rate
-      let yesterdayLowestHR = null;
-      if (heartrateYesterdayData?.data && heartrateYesterdayData.data.length > 0) {
-        const restingReadings = heartrateYesterdayData.data
-          .filter(reading => reading.source === 'sleep' || reading.source === 'rest')
-          .map(reading => reading.bpm)
-          .filter(bpm => bpm != null);
-        
-        if (restingReadings.length > 0) {
-          yesterdayLowestHR = Math.min(...restingReadings);
-        }
+      const fallbackSleepData = fallbackSleepResponse.ok ? await fallbackSleepResponse.json() : null;
+      const fallbackReadinessData = fallbackReadinessResponse.ok ? await fallbackReadinessResponse.json() : null;
+      
+      if (fallbackSleepData?.data?.[0] || fallbackReadinessData?.data?.[0]) {
+        return {
+          statusCode: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': 'Content-Type'
+          },
+          body: JSON.stringify({
+            sleep: fallbackSleepData?.data?.[0] || null,
+            readiness: fallbackReadinessData?.data?.[0] || null,
+            activity: activity,
+            sleepDuration: fallbackSleepData?.data?.[0]?.total_sleep_duration || fallbackSleepData?.data?.[0]?.sleep_duration || null,
+            sleepHours: fallbackSleepData?.data?.[0]?.total_sleep_duration ? (parseFloat(fallbackSleepData.data[0].total_sleep_duration) / 3600).toFixed(1) : (fallbackSleepData?.data?.[0]?.sleep_duration ? (parseFloat(fallbackSleepData.data[0].sleep_duration) / 3600).toFixed(1) : null),
+            steps: steps,
+            lowestRestingHR: lowestRestingHR,
+            activeCalories: activeCalories,
+            dataDate: todayDate,
+            note: 'Using today\'s data (yesterday not yet available)'
+          })
+        };
       }
-
-      return {
-        statusCode: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': 'Content-Type'
-        },
-        body: JSON.stringify({
-          sleep: yesterdaySleep,
-          readiness: yesterdayReadiness,
-          activity: yesterdayActivity,
-          sleepDuration: yesterdaySleepDuration,
-          sleepHours: yesterdaySleepHours,
-          steps: yesterdaySteps,
-          lowestRestingHR: yesterdayLowestHR,
-          activeCalories: yesterdayActiveCalories,
-          dataDate: yesterdayDate,
-          note: 'Using yesterday\'s data (today not yet available)'
-        })
-      };
     }
 
     // Return the combined data
@@ -195,7 +176,11 @@ exports.handler = async function(event, context) {
         steps: steps,
         lowestRestingHR: lowestRestingHR,
         activeCalories: activeCalories,
-        dataDate: targetDate
+        dataDate: mode === 'morning' ? yesterdayDate : todayDate,
+        activityDate: activityDate,
+        note: mode === 'morning' 
+          ? `Sleep data from ${yesterdayDate} (last night), activity from ${activityDate} (in progress)`
+          : `Sleep data from ${sleepDate}, activity from ${activityDate} (today)`
       })
     };
 

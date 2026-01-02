@@ -907,6 +907,11 @@
                 if (exerciseLabel) exerciseLabel.textContent = 'Exercise (select all that apply)';
                 if (ratingLabel) ratingLabel.textContent = 'Overall Day Rating';
             }
+            
+            // Re-display Oura data if already loaded (to update the display format)
+            if (ouraData) {
+                displayOuraData();
+            }
         }
 
         async function startSession() {
@@ -947,9 +952,9 @@
             ouraSection.innerHTML = '<div class="loading-message"><div class="loading-spinner"></div><br>Fetching Oura data...</div>';
 
             try {
-                const today = new Date().toISOString().split('T')[0];
-                
-                // Call our Netlify serverless function instead of Oura API directly
+                // Pass the current mode so backend knows what data to fetch
+                // Morning: needs yesterday's sleep data (last night)
+                // Evening: needs today's activity data (today's activity)
                 const response = await fetch('/.netlify/functions/fetch-oura', {
                     method: 'POST',
                     headers: {
@@ -957,7 +962,7 @@
                     },
                     body: JSON.stringify({
                         ouraToken: config.ouraToken,
-                        date: today
+                        mode: currentMode // 'morning' or 'evening'
                     })
                 });
 
@@ -1009,39 +1014,78 @@
                 </div>` : '';
 
             const dataDateStr = ouraData.dataDate ? escapeHtml(ouraData.dataDate) : '';
+            const activityDateStr = ouraData.activityDate ? escapeHtml(ouraData.activityDate) : '';
+
+            // For morning mode, emphasize sleep/readiness data (last night)
+            // For evening mode, emphasize activity data (today's completed activity)
+            const isMorning = currentMode === 'morning';
+            
+            let statsHtml = '';
+            
+            if (isMorning) {
+                // Morning: Show sleep metrics prominently, activity as secondary
+                statsHtml = `
+                    <div class="oura-stat">
+                        <div class="oura-stat-label">Sleep Score</div>
+                        <div class="oura-stat-value">${escapeHtml(String(sleepScore))}</div>
+                    </div>
+                    <div class="oura-stat">
+                        <div class="oura-stat-label">Sleep Hours</div>
+                        <div class="oura-stat-value">${escapeHtml(String(sleepHours))}</div>
+                    </div>
+                    <div class="oura-stat">
+                        <div class="oura-stat-label">Readiness</div>
+                        <div class="oura-stat-value">${escapeHtml(String(readinessScore))}</div>
+                    </div>
+                    <div class="oura-stat">
+                        <div class="oura-stat-label">Lowest Resting HR</div>
+                        <div class="oura-stat-value">${escapeHtml(String(lowestHR))}</div>
+                    </div>
+                `;
+                // Only show activity if it's meaningful (not just starting the day)
+                if (steps !== 'N/A' && parseInt(steps) > 100) {
+                    statsHtml += `
+                        <div class="oura-stat" style="opacity: 0.7;">
+                            <div class="oura-stat-label">Steps (so far)</div>
+                            <div class="oura-stat-value">${escapeHtml(String(steps))}</div>
+                        </div>
+                    `;
+                }
+            } else {
+                // Evening: Show activity metrics prominently, sleep as reference
+                statsHtml = `
+                    <div class="oura-stat">
+                        <div class="oura-stat-label">Activity Score</div>
+                        <div class="oura-stat-value">${escapeHtml(String(activityScore))}</div>
+                    </div>
+                    <div class="oura-stat">
+                        <div class="oura-stat-label">Steps</div>
+                        <div class="oura-stat-value">${escapeHtml(String(steps))}</div>
+                    </div>
+                    <div class="oura-stat">
+                        <div class="oura-stat-label">Active Calories</div>
+                        <div class="oura-stat-value">${escapeHtml(String(activeCal))}</div>
+                    </div>
+                    <div class="oura-stat" style="opacity: 0.7;">
+                        <div class="oura-stat-label">Sleep Score (last night)</div>
+                        <div class="oura-stat-value">${escapeHtml(String(sleepScore))}</div>
+                    </div>
+                    <div class="oura-stat" style="opacity: 0.7;">
+                        <div class="oura-stat-label">Readiness</div>
+                        <div class="oura-stat-value">${escapeHtml(String(readinessScore))}</div>
+                    </div>
+                `;
+            }
+
+            const dateLabel = isMorning 
+                ? (dataDateStr ? `Sleep: ${dataDateStr}` : '')
+                : (activityDateStr ? `Activity: ${activityDateStr}` : '');
 
             ouraSection.innerHTML = `
                 <div class="oura-summary">
-                    <h3>📱 Oura Ring Data${dataDateStr ? ` (${dataDateStr})` : ''}</h3>
+                    <h3>📱 Oura Ring Data${dateLabel ? ` (${dateLabel})` : ''}</h3>
                     <div class="oura-stats">
-                        <div class="oura-stat">
-                            <div class="oura-stat-label">Sleep Score</div>
-                            <div class="oura-stat-value">${escapeHtml(String(sleepScore))}</div>
-                        </div>
-                        <div class="oura-stat">
-                            <div class="oura-stat-label">Sleep Hours</div>
-                            <div class="oura-stat-value">${escapeHtml(String(sleepHours))}</div>
-                        </div>
-                        <div class="oura-stat">
-                            <div class="oura-stat-label">Readiness</div>
-                            <div class="oura-stat-value">${escapeHtml(String(readinessScore))}</div>
-                        </div>
-                        <div class="oura-stat">
-                            <div class="oura-stat-label">Activity</div>
-                            <div class="oura-stat-value">${escapeHtml(String(activityScore))}</div>
-                        </div>
-                        <div class="oura-stat">
-                            <div class="oura-stat-label">Steps</div>
-                            <div class="oura-stat-value">${escapeHtml(String(steps))}</div>
-                        </div>
-                        <div class="oura-stat">
-                            <div class="oura-stat-label">Lowest Resting HR</div>
-                            <div class="oura-stat-value">${escapeHtml(String(lowestHR))}</div>
-                        </div>
-                        <div class="oura-stat">
-                            <div class="oura-stat-label">Active Calories</div>
-                            <div class="oura-stat-value">${escapeHtml(String(activeCal))}</div>
-                        </div>
+                        ${statsHtml}
                     </div>
                     ${noteHtml}
                 </div>
