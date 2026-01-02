@@ -412,6 +412,12 @@
                 <div class="config-note">Get at: cloud.ouraring.com/personal-access-tokens</div>
             </div>
 
+            <div class="config-group">
+                <label class="config-label">Claude API Key (Optional - for AI recommendations)</label>
+                <input type="password" id="claudeApiKey" class="config-input" placeholder="Leave blank to skip AI recommendations">
+                <div class="config-note">Get at: console.anthropic.com. Required for personalized recommendations.</div>
+            </div>
+
             <button class="submit-button" onclick="startSession()">Start Daily Check-In</button>
         </div>
 
@@ -781,7 +787,8 @@
             airtableToken: '',
             airtableBaseId: '',
             airtableTableName: 'Daily Logs',
-            ouraToken: ''
+            ouraToken: '',
+            claudeApiKey: '' // Optional - for AI recommendations
         };
         let ouraData = null;
         let currentMode = 'morning'; // 'morning' or 'evening'
@@ -963,17 +970,20 @@
                     config.airtableBaseId = parsed.airtableBaseId || '';
                     config.airtableTableName = parsed.airtableTableName || 'Daily Logs';
                     config.ouraToken = parsed.ouraToken || '';
+                    config.claudeApiKey = parsed.claudeApiKey || '';
                     
                     // Populate form fields if they exist
                     const airtableTokenEl = document.getElementById('airtableToken');
                     const airtableBaseIdEl = document.getElementById('airtableBaseId');
                     const airtableTableNameEl = document.getElementById('airtableTableName');
                     const ouraTokenEl = document.getElementById('ouraToken');
+                    const claudeApiKeyEl = document.getElementById('claudeApiKey');
                     
                     if (airtableTokenEl) airtableTokenEl.value = config.airtableToken;
                     if (airtableBaseIdEl) airtableBaseIdEl.value = config.airtableBaseId;
                     if (airtableTableNameEl) airtableTableNameEl.value = config.airtableTableName;
                     if (ouraTokenEl) ouraTokenEl.value = config.ouraToken;
+                    if (claudeApiKeyEl) claudeApiKeyEl.value = config.claudeApiKey;
                     
                     // If we have all required config, auto-start
                     if (config.airtableToken && config.airtableBaseId && config.airtableTableName) {
@@ -1000,7 +1010,8 @@
                     airtableToken: config.airtableToken,
                     airtableBaseId: config.airtableBaseId,
                     airtableTableName: config.airtableTableName,
-                    ouraToken: config.ouraToken
+                    ouraToken: config.ouraToken,
+                    claudeApiKey: config.claudeApiKey
                 }));
             } catch (e) {
                 console.error('Error saving config:', e);
@@ -1029,6 +1040,7 @@
             const airtableBaseIdEl = document.getElementById('airtableBaseId');
             const airtableTableNameEl = document.getElementById('airtableTableName');
             const ouraTokenEl = document.getElementById('ouraToken');
+            const claudeApiKeyEl = document.getElementById('claudeApiKey');
             const configSection = document.getElementById('configSection');
             const formSection = document.getElementById('formSection');
 
@@ -1041,6 +1053,7 @@
             config.airtableBaseId = airtableBaseIdEl.value.trim();
             config.airtableTableName = airtableTableNameEl.value.trim();
             config.ouraToken = ouraTokenEl ? ouraTokenEl.value.trim() : '';
+            config.claudeApiKey = claudeApiKeyEl ? claudeApiKeyEl.value.trim() : '';
 
             if (!config.airtableToken || !config.airtableBaseId || !config.airtableTableName) {
                 alert('Please fill in all required Airtable fields');
@@ -1284,11 +1297,13 @@
                 const savedRecord = await saveResponse.json();
                 existingRecordId = savedRecord.records[0]?.id || null; // Store for evening update
 
-                recSection.innerHTML = '<div class="success-message">✓ Morning check-in saved!</div>' +
+                // Airtable save succeeded - now try to get recommendations (optional)
+                recSection.innerHTML = '<div class="success-message">✓ Morning check-in saved to Airtable!</div>' +
                     '<div class="loading-message"><div class="loading-spinner"></div><br>Generating your personalized plan for today...</div>';
 
-                // Get recommendations from Claude
-                const recommendationPrompt = `Based on this morning's health check-in data, create a personalized health plan for TODAY.
+                // Try to get recommendations from Claude (optional - don't fail if this doesn't work)
+                try {
+                    const recommendationPrompt = `Based on this morning's health check-in data, create a personalized health plan for TODAY.
 
 Morning Check-In Data:
 ${JSON.stringify(data, null, 2)}
@@ -1306,41 +1321,69 @@ Provide:
 
 Keep it warm, encouraging, and practical. Focus on what they can do TODAY to optimize their health. This is a MORNING plan, so frame everything as "today you should..." not "you did well..."`;
 
-                const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        model: 'claude-sonnet-4-20250514',
-                        max_tokens: 1500,
-                        messages: [{
-                            role: 'user',
-                            content: recommendationPrompt
-                        }]
-                    })
-                });
+                    // Check if Claude API key is configured
+                    if (!config.claudeApiKey) {
+                        throw new Error('Claude API key not configured. Recommendations disabled.');
+                    }
 
-                if (!claudeResponse.ok) {
-                    throw new Error('Failed to get recommendations from Claude');
-                }
+                    const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-api-key': config.claudeApiKey,
+                            'anthropic-version': '2023-06-01'
+                        },
+                        body: JSON.stringify({
+                            model: 'claude-sonnet-4-20250514',
+                            max_tokens: 1500,
+                            messages: [{
+                                role: 'user',
+                                content: recommendationPrompt
+                            }]
+                        })
+                    });
 
-                const claudeData = await claudeResponse.json();
-                
-                if (claudeData.content && claudeData.content[0]) {
-                    const recommendations = claudeData.content[0].text;
+                    if (!claudeResponse.ok) {
+                        const errorText = await claudeResponse.text();
+                        let errorMsg = 'Failed to get recommendations from Claude';
+                        try {
+                            const errorData = JSON.parse(errorText);
+                            errorMsg = errorData.error?.message || errorData.message || errorMsg;
+                        } catch (e) {
+                            errorMsg = errorText || errorMsg;
+                        }
+                        throw new Error(errorMsg);
+                    }
+
+                    const claudeData = await claudeResponse.json();
                     
+                    if (claudeData.content && claudeData.content[0]) {
+                        const recommendations = claudeData.content[0].text;
+                        
+                        recSection.innerHTML = `
+                            <div class="success-message">✓ Morning check-in saved to Airtable!</div>
+                            <div class="recommendation-box">
+                                <h3>🎯 Your Personalized Plan for Today</h3>
+                                <div style="white-space: pre-wrap;">${escapeHtml(recommendations)}</div>
+                            </div>
+                            <button class="new-entry-button" onclick="showEveningUpdateOption()">Update This Entry Tonight</button>
+                            <button class="new-entry-button" style="margin-top: 10px; background: #667eea;" onclick="location.reload()">Start Fresh Tomorrow</button>
+                        `;
+                    } else {
+                        throw new Error('Could not generate recommendations');
+                    }
+                } catch (claudeError) {
+                    // Claude failed, but Airtable save succeeded - show success without recommendations
+                    console.warn('Claude API error (non-fatal):', claudeError);
                     recSection.innerHTML = `
                         <div class="success-message">✓ Morning check-in saved to Airtable!</div>
-                        <div class="recommendation-box">
-                            <h3>🎯 Your Personalized Plan for Today</h3>
-                            <div style="white-space: pre-wrap;">${escapeHtml(recommendations)}</div>
+                        <div style="padding: 20px; text-align: center;">
+                            <p style="margin-bottom: 15px;">Your data has been saved successfully.</p>
+                            <p style="font-size: 14px; color: #666; margin-bottom: 20px;">AI recommendations are currently unavailable. Your data is still saved.</p>
+                            <button class="new-entry-button" onclick="showEveningUpdateOption()">Update This Entry Tonight</button>
+                            <button class="new-entry-button" style="margin-top: 10px; background: #667eea;" onclick="location.reload()">Start Fresh Tomorrow</button>
                         </div>
-                        <button class="new-entry-button" onclick="showEveningUpdateOption()">Update This Entry Tonight</button>
-                        <button class="new-entry-button" style="margin-top: 10px; background: #667eea;" onclick="location.reload()">Start Fresh Tomorrow</button>
                     `;
-                } else {
-                    throw new Error('Could not generate recommendations');
                 }
             } catch (error) {
                 recSection.innerHTML = `
