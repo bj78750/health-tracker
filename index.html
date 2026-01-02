@@ -413,6 +413,12 @@
             </div>
 
             <div class="config-group">
+                <label class="config-label">Oura Proxy URL (Optional - for GitHub Pages)</label>
+                <input type="text" id="ouraProxyUrl" class="config-input" placeholder="Leave blank for auto-detect (Netlify/direct)">
+                <div class="config-note">Only needed for GitHub Pages. Set to your Vercel/Cloudflare proxy URL if using one.</div>
+            </div>
+
+            <div class="config-group">
                 <label class="config-label">Claude API Key (Optional - for AI recommendations)</label>
                 <input type="password" id="claudeApiKey" class="config-input" placeholder="Leave blank to skip AI recommendations">
                 <div class="config-note">Get at: console.anthropic.com. Required for personalized recommendations.</div>
@@ -788,6 +794,7 @@
             airtableBaseId: '',
             airtableTableName: 'Daily Logs',
             ouraToken: '',
+            ouraProxyUrl: '', // Optional - for GitHub Pages (Vercel/Cloudflare proxy URL)
             claudeApiKey: '' // Optional - for AI recommendations
         };
         let ouraData = null;
@@ -970,6 +977,7 @@
                     config.airtableBaseId = parsed.airtableBaseId || '';
                     config.airtableTableName = parsed.airtableTableName || 'Daily Logs';
                     config.ouraToken = parsed.ouraToken || '';
+                    config.ouraProxyUrl = parsed.ouraProxyUrl || '';
                     config.claudeApiKey = parsed.claudeApiKey || '';
                     
                     // Populate form fields if they exist
@@ -977,12 +985,14 @@
                     const airtableBaseIdEl = document.getElementById('airtableBaseId');
                     const airtableTableNameEl = document.getElementById('airtableTableName');
                     const ouraTokenEl = document.getElementById('ouraToken');
+                    const ouraProxyUrlEl = document.getElementById('ouraProxyUrl');
                     const claudeApiKeyEl = document.getElementById('claudeApiKey');
                     
                     if (airtableTokenEl) airtableTokenEl.value = config.airtableToken;
                     if (airtableBaseIdEl) airtableBaseIdEl.value = config.airtableBaseId;
                     if (airtableTableNameEl) airtableTableNameEl.value = config.airtableTableName;
                     if (ouraTokenEl) ouraTokenEl.value = config.ouraToken;
+                    if (ouraProxyUrlEl) ouraProxyUrlEl.value = config.ouraProxyUrl;
                     if (claudeApiKeyEl) claudeApiKeyEl.value = config.claudeApiKey;
                     
                     // If we have all required config, auto-start
@@ -1011,6 +1021,7 @@
                     airtableBaseId: config.airtableBaseId,
                     airtableTableName: config.airtableTableName,
                     ouraToken: config.ouraToken,
+                    ouraProxyUrl: config.ouraProxyUrl,
                     claudeApiKey: config.claudeApiKey
                 }));
             } catch (e) {
@@ -1053,6 +1064,8 @@
             config.airtableBaseId = airtableBaseIdEl.value.trim();
             config.airtableTableName = airtableTableNameEl.value.trim();
             config.ouraToken = ouraTokenEl ? ouraTokenEl.value.trim() : '';
+            const ouraProxyUrlEl = document.getElementById('ouraProxyUrl');
+            config.ouraProxyUrl = ouraProxyUrlEl ? ouraProxyUrlEl.value.trim() : '';
             config.claudeApiKey = claudeApiKeyEl ? claudeApiKeyEl.value.trim() : '';
 
             if (!config.airtableToken || !config.airtableBaseId || !config.airtableTableName) {
@@ -1084,23 +1097,162 @@
             ouraSection.innerHTML = '<div class="loading-message"><div class="loading-spinner"></div><br>Fetching Oura data...</div>';
 
             try {
-                // Fetch Oura data (static - same for morning and evening)
-                // The backend will fetch today's Sleep Score/Readiness and yesterday's sleep duration/HR
+                // Try to fetch Oura data
+                // For GitHub Pages: Try direct API call first, fallback to proxy if configured
                 let response;
-                try {
-                    response = await fetch('/.netlify/functions/fetch-oura', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            ouraToken: config.ouraToken
-                            // No mode needed - always fetch the same data
-                        })
-                    });
-                } catch (fetchError) {
-                    // Network error (function not found, CORS, connection refused, etc.)
-                    throw new Error(`Network error: ${fetchError.message}. Make sure the Netlify function is deployed.`);
+                const useProxy = config.ouraProxyUrl || false; // Set this if using a proxy service
+                
+                if (useProxy) {
+                    // Use proxy service (Vercel, Cloudflare Workers, etc.)
+                    try {
+                        response = await fetch(config.ouraProxyUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                ouraToken: config.ouraToken
+                            })
+                        });
+                    } catch (fetchError) {
+                        throw new Error(`Proxy error: ${fetchError.message}. Check your proxy URL configuration.`);
+                    }
+                } else {
+                    // Try direct API call (may fail due to CORS - if so, use a proxy)
+                    try {
+                        const today = new Date();
+                        const todayDate = today.toISOString().split('T')[0];
+                        
+                        // Fetch directly from Oura API
+                        const [sleepResponse, readinessResponse] = await Promise.all([
+                            fetch(`https://api.ouraring.com/v2/usercollection/daily_sleep?start_date=${todayDate}&end_date=${todayDate}`, {
+                                headers: { 'Authorization': `Bearer ${config.ouraToken}` }
+                            }),
+                            fetch(`https://api.ouraring.com/v2/usercollection/daily_readiness?start_date=${todayDate}&end_date=${todayDate}`, {
+                                headers: { 'Authorization': `Bearer ${config.ouraToken}` }
+                            })
+                        ]);
+                        
+                        // Check if we got CORS errors
+                        if (!sleepResponse.ok && sleepResponse.status === 0) {
+                            throw new Error('CORS error: Oura API does not allow direct browser access. Please configure a proxy URL (see README for GitHub Pages setup).');
+                        }
+                        
+                        // Parse responses
+                        let sleepData = null;
+                        let readinessData = null;
+                        
+                        try {
+                            sleepData = sleepResponse.ok ? await sleepResponse.json() : null;
+                        } catch (e) {
+                            console.error('Error parsing sleep data:', e);
+                        }
+                        
+                        try {
+                            readinessData = readinessResponse.ok ? await readinessResponse.json() : null;
+                        } catch (e) {
+                            console.error('Error parsing readiness data:', e);
+                        }
+                        
+                        // Extract the 4 static metrics
+                        const sleep = sleepData?.data?.[0] || null;
+                        const readiness = readinessData?.data?.[0] || null;
+                        
+                        const sleepScore = sleep?.score || null;
+                        const totalSleep = sleep?.contributors?.total_sleep || null;
+                        const readinessScore = readiness?.score || null;
+                        const previousDayActivity = readiness?.contributors?.previous_day_activity || null;
+                        
+                        // Format as if from proxy
+                        const data = {
+                            sleepScore: sleepScore,
+                            totalSleep: totalSleep,
+                            readinessScore: readinessScore,
+                            previousDayActivity: previousDayActivity,
+                            dataDate: todayDate
+                        };
+                        
+                        ouraData = {
+                            sleepScore: data.sleepScore,
+                            totalSleep: data.totalSleep,
+                            readinessScore: data.readinessScore,
+                            previousDayActivity: data.previousDayActivity,
+                            dataDate: data.dataDate
+                        };
+                        
+                        displayOuraData();
+                        return; // Success - exit early
+                    } catch (directError) {
+                        // Direct API call failed (likely CORS) - try Netlify function as fallback
+                        if (directError.message.includes('CORS')) {
+                            throw directError; // Re-throw CORS error with helpful message
+                        }
+                        
+                        // Try Netlify function as fallback (for backwards compatibility)
+                        try {
+                            response = await fetch('/.netlify/functions/fetch-oura', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    ouraToken: config.ouraToken
+                                })
+                            });
+                        } catch (fetchError) {
+                            throw new Error(`Network error: ${directError.message}. For GitHub Pages, you need to set up a proxy (see GITHUB_PAGES_SETUP.md).`);
+                        }
+                    }
+                }
+                
+                // Handle proxy/Netlify function response
+                if (response) {
+                    // Always try to parse the response, even if not ok
+                    let data;
+                    let responseText;
+                    try {
+                        responseText = await response.text();
+                    } catch (textError) {
+                        throw new Error(`Failed to read response: ${textError.message}`);
+                    }
+                    
+                    if (!response.ok) {
+                        let errorMessage = `HTTP ${response.status} ${response.statusText}: Failed to fetch Oura data`;
+                        try {
+                            const errorData = JSON.parse(responseText);
+                            errorMessage = errorData.error || errorData.message || errorMessage;
+                            if (errorData.message && errorData.message !== errorData.error) {
+                                errorMessage += ' - ' + errorData.message;
+                            }
+                        } catch (e) {
+                            if (responseText) {
+                                errorMessage = responseText.substring(0, 200);
+                            }
+                        }
+                        throw new Error(errorMessage);
+                    }
+                    
+                    // Parse successful response
+                    try {
+                        data = JSON.parse(responseText);
+                    } catch (e) {
+                        throw new Error('Invalid JSON response from server: ' + responseText.substring(0, 100));
+                    }
+                    
+                    // Check if the response contains an error
+                    if (data.error) {
+                        throw new Error(data.error + (data.message ? ': ' + data.message : ''));
+                    }
+                    
+                    ouraData = {
+                        sleepScore: data.sleepScore,
+                        totalSleep: data.totalSleep,
+                        readinessScore: data.readinessScore,
+                        previousDayActivity: data.previousDayActivity,
+                        dataDate: data.dataDate
+                    };
+                    
+                    displayOuraData();
                 }
 
                 // Always try to parse the response, even if not ok
