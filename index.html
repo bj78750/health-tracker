@@ -1278,20 +1278,33 @@
 
             try {
                 // Save to Airtable
-                const saveResponse = await fetch(`https://api.airtable.com/v0/${config.airtableBaseId}/${encodeURIComponent(config.airtableTableName)}`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${config.airtableToken}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        records: [{ fields: data }]
-                    })
-                });
+                let saveResponse;
+                try {
+                    saveResponse = await fetch(`https://api.airtable.com/v0/${config.airtableBaseId}/${encodeURIComponent(config.airtableTableName)}`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${config.airtableToken}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            records: [{ fields: data }]
+                        })
+                    });
+                } catch (fetchError) {
+                    throw new Error(`Network error saving to Airtable: ${fetchError.message}`);
+                }
 
                 if (!saveResponse.ok) {
-                    const errorData = await saveResponse.json();
-                    throw new Error(errorData.error?.message || 'Failed to save to Airtable');
+                    let errorMessage = `Airtable save failed (HTTP ${saveResponse.status})`;
+                    try {
+                        const errorText = await saveResponse.text();
+                        const errorData = JSON.parse(errorText);
+                        errorMessage = errorData.error?.message || errorData.message || errorMessage;
+                    } catch (e) {
+                        // If we can't parse the error, use the status text
+                        errorMessage = `Airtable save failed: ${saveResponse.statusText || saveResponse.status}`;
+                    }
+                    throw new Error(errorMessage);
                 }
 
                 const savedRecord = await saveResponse.json();
@@ -1334,7 +1347,7 @@ Keep it warm, encouraging, and practical. Focus on what they can do TODAY to opt
                             'anthropic-version': '2023-06-01'
                         },
                         body: JSON.stringify({
-                            model: 'claude-sonnet-4-20250514',
+                            model: 'claude-3-5-sonnet-20241022', // Using a valid model name
                             max_tokens: 1500,
                             messages: [{
                                 role: 'user',
@@ -1375,20 +1388,43 @@ Keep it warm, encouraging, and practical. Focus on what they can do TODAY to opt
                 } catch (claudeError) {
                     // Claude failed, but Airtable save succeeded - show success without recommendations
                     console.warn('Claude API error (non-fatal):', claudeError);
+                    const claudeErrorMsg = claudeError.message || 'Unknown error';
                     recSection.innerHTML = `
                         <div class="success-message">✓ Morning check-in saved to Airtable!</div>
                         <div style="padding: 20px; text-align: center;">
-                            <p style="margin-bottom: 15px;">Your data has been saved successfully.</p>
-                            <p style="font-size: 14px; color: #666; margin-bottom: 20px;">AI recommendations are currently unavailable. Your data is still saved.</p>
+                            <p style="margin-bottom: 15px; font-weight: bold;">Your data has been saved successfully to Airtable.</p>
+                            <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; padding: 15px; margin: 15px 0; text-align: left;">
+                                <p style="margin: 0 0 10px 0; font-weight: bold; color: #856404;">⚠️ AI Recommendations Unavailable</p>
+                                <p style="margin: 0; font-size: 13px; color: #856404;">Claude API Error: ${escapeHtml(claudeErrorMsg)}</p>
+                                <p style="margin: 10px 0 0 0; font-size: 12px; color: #856404;">Your health data is still saved. You can check your Airtable to verify.</p>
+                            </div>
                             <button class="new-entry-button" onclick="showEveningUpdateOption()">Update This Entry Tonight</button>
                             <button class="new-entry-button" style="margin-top: 10px; background: #667eea;" onclick="location.reload()">Start Fresh Tomorrow</button>
                         </div>
                     `;
                 }
             } catch (error) {
+                // This catch block should only catch Airtable errors (before Claude is called)
+                console.error('Error in saveAndGetRecommendations:', error);
+                console.error('Error details:', {
+                    message: error.message,
+                    stack: error.stack,
+                    name: error.name
+                });
+                
                 recSection.innerHTML = `
-                    <div class="error-message">Error: ${escapeHtml(error.message)}</div>
+                    <div class="error-message">
+                        <strong>Airtable Save Error:</strong> ${escapeHtml(error.message)}
+                        <br><br>Your data was NOT saved to Airtable. Please check:
+                        <ul style="text-align: left; margin: 15px 0; padding-left: 30px;">
+                            <li>Your Airtable token is valid and has write permissions</li>
+                            <li>Your Base ID is correct</li>
+                            <li>Your table name matches exactly (case-sensitive)</li>
+                            <li>All required fields exist in your Airtable table</li>
+                        </ul>
+                    </div>
                     <button class="new-entry-button" onclick="location.reload()">Try Again</button>
+                    <button class="new-entry-button" style="margin-top: 10px; background: #667eea;" onclick="showConfig()">Check Configuration</button>
                 `;
             }
         }
