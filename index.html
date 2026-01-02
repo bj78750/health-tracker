@@ -1,422 +1,1324 @@
-<!-- Add this CSS to your existing styles section -->
-<style>
-    /* ... existing styles ... */
-    
-    .mode-selector {
-        padding: 20px 30px;
-        background: #f8f9fa;
-        border-bottom: 2px solid #e0e0e0;
-    }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Health Check-In</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-    .mode-buttons {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 15px;
-        margin-top: 15px;
-    }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
 
-    .mode-button {
-        padding: 20px;
-        background: white;
-        border: 3px solid #e0e0e0;
-        border-radius: 12px;
-        cursor: pointer;
-        transition: all 0.3s;
-        text-align: center;
-    }
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 800px;
+            margin: 0 auto;
+            overflow: hidden;
+        }
 
-    .mode-button:hover {
-        border-color: #667eea;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
-    }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
 
-    .mode-button.active {
-        border-color: #667eea;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-    }
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
 
-    .mode-button h4 {
-        margin-bottom: 8px;
-        font-size: 18px;
-    }
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
 
-    .mode-button p {
-        font-size: 13px;
-        opacity: 0.8;
-        margin: 0;
-    }
+        .config-section {
+            padding: 30px;
+            background: #f8f9fa;
+        }
 
-    .mode-button.active p {
-        opacity: 1;
-    }
+        .config-group {
+            margin-bottom: 20px;
+        }
 
-    .field-optional {
-        opacity: 0.6;
-    }
+        .config-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #555;
+            font-size: 14px;
+        }
 
-    .field-optional::after {
-        content: " (Optional for morning)";
-        font-size: 12px;
-        color: #667eea;
-        font-weight: normal;
-    }
-</style>
+        .config-input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: monospace;
+        }
 
-<!-- Replace the form section starting after ouraSection -->
-<div id="formSection" class="hidden">
-    <div id="ouraSection"></div>
-    
-    <!-- Mode Selector -->
-    <div class="mode-selector">
-        <h3 style="margin-bottom: 10px;">Select Check-In Type</h3>
-        <div class="mode-buttons">
-            <div class="mode-button active" id="morningModeBtn" onclick="selectMode('morning')">
-                <h4>🌅 Morning Check-In</h4>
-                <p>Get your personalized plan for the day</p>
+        .config-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .config-note {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .form-section {
+            padding: 30px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .oura-summary {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+        }
+
+        .oura-summary h3 {
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .oura-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .oura-stat {
+            background: rgba(255,255,255,0.2);
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        .oura-stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .oura-stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        .mode-selector {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .mode-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .mode-button {
+            padding: 20px;
+            background: white;
+            border: 3px solid #e0e0e0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .mode-button:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+
+        .mode-button.active {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .mode-button h4 {
+            margin-bottom: 8px;
+            font-size: 18px;
+        }
+
+        .mode-button p {
+            font-size: 13px;
+            opacity: 0.8;
+            margin: 0;
+        }
+
+        .mode-button.active p {
+            opacity: 1;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 15px;
+        }
+
+        .field-optional {
+            opacity: 0.6;
+        }
+
+        .field-optional::after {
+            content: " (Optional for morning)";
+            font-size: 12px;
+            color: #667eea;
+            font-weight: normal;
+        }
+
+        .form-select, .form-input, .form-textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 15px;
+            background: white;
+            transition: border-color 0.3s;
+        }
+
+        .form-select:focus, .form-input:focus, .form-textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 80px;
+            font-family: inherit;
+        }
+
+        .checkbox-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 8px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .checkbox-item label {
+            cursor: pointer;
+            font-size: 14px;
+            color: #555;
+        }
+
+        .rating-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 8px;
+        }
+
+        .rating-star {
+            font-size: 32px;
+            cursor: pointer;
+            color: #ddd;
+            transition: color 0.2s;
+        }
+
+        .rating-star.active {
+            color: #fbbf24;
+        }
+
+        .rating-star:hover {
+            color: #fbbf24;
+        }
+
+        .submit-button {
+            width: 100%;
+            padding: 18px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .submit-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .submit-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .recommendations-section {
+            padding: 30px;
+            background: #f8f9fa;
+        }
+
+        .recommendation-box {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            line-height: 1.8;
+        }
+
+        .recommendation-box h3 {
+            margin-bottom: 15px;
+            font-size: 22px;
+        }
+
+        .success-message {
+            background: #10b981;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .error-message {
+            background: #ef4444;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .loading-message {
+            text-align: center;
+            padding: 30px;
+            color: #667eea;
+            font-size: 16px;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .new-entry-button {
+            width: 100%;
+            padding: 15px;
+            background: #10b981;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .new-entry-button:hover {
+            background: #059669;
+            transform: translateY(-2px);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .section-divider {
+            height: 1px;
+            background: #e0e0e0;
+            margin: 30px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏥 Daily Health Check-In</h1>
+            <p>Quick form entry with AI-powered recommendations</p>
+        </div>
+
+        <!-- Configuration Section -->
+        <div id="configSection" class="config-section">
+            <h3 style="margin-bottom: 20px;">⚙️ Setup Configuration</h3>
+            
+            <div class="config-group">
+                <label class="config-label">Airtable Personal Access Token</label>
+                <input type="password" id="airtableToken" class="config-input" placeholder="Enter your Airtable PAT">
+                <div class="config-note">Create at: airtable.com/create/tokens</div>
             </div>
-            <div class="mode-button" id="eveningModeBtn" onclick="selectMode('evening')">
-                <h4>🌙 Evening Update</h4>
-                <p>Log what happened today</p>
+
+            <div class="config-group">
+                <label class="config-label">Airtable Base ID</label>
+                <input type="text" id="airtableBaseId" class="config-input" placeholder="appXXXXXXXXXXXXXX">
+            </div>
+
+            <div class="config-group">
+                <label class="config-label">Airtable Table Name</label>
+                <input type="text" id="airtableTableName" class="config-input" value="Daily Logs">
+            </div>
+
+            <div class="config-group">
+                <label class="config-label">Oura API Token (Optional)</label>
+                <input type="password" id="ouraToken" class="config-input" placeholder="Leave blank to skip">
+                <div class="config-note">Get at: cloud.ouraring.com/personal-access-tokens</div>
+            </div>
+
+            <button class="submit-button" onclick="startSession()">Start Daily Check-In</button>
+        </div>
+
+        <!-- Form Section -->
+        <div id="formSection" class="hidden">
+            <div id="ouraSection"></div>
+            
+            <!-- Mode Selector -->
+            <div class="mode-selector">
+                <h3 style="margin-bottom: 10px;">Select Check-In Type</h3>
+                <div class="mode-buttons">
+                    <div class="mode-button active" id="morningModeBtn">
+                        <h4>🌅 Morning Check-In</h4>
+                        <p>Get your personalized plan for the day</p>
+                    </div>
+                    <div class="mode-button" id="eveningModeBtn">
+                        <h4>🌙 Evening Update</h4>
+                        <p>Log what happened today</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-section">
+                <form id="healthForm">
+                    <!-- Instructions box -->
+                    <div id="modeInstructions" style="background: #e0e7ff; padding: 15px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #667eea;">
+                        <strong id="instructionsTitle">🌅 Morning Check-In</strong>
+                        <p id="instructionsText" style="margin: 8px 0 0 0; font-size: 14px;">
+                            Fill in how you're feeling now. Fields marked optional can be skipped - you can update them later in the evening.
+                        </p>
+                    </div>
+
+                    <!-- Mood & Energy (Always required) -->
+                    <div class="form-group">
+                        <label class="form-label">How's your mood right now?</label>
+                        <select class="form-select" name="Mood" required>
+                            <option value="">Select your mood...</option>
+                            <option value="Happy">😊 Happy</option>
+                            <option value="Calm">😌 Calm</option>
+                            <option value="Anxious">😰 Anxious</option>
+                            <option value="Stressed">😣 Stressed</option>
+                            <option value="Sad">😢 Sad</option>
+                            <option value="Irritable">😠 Irritable</option>
+                            <option value="Energized">⚡ Energized</option>
+                            <option value="Mixed">🌀 Mixed</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Energy Level</label>
+                        <select class="form-select" name="Energy Level" required>
+                            <option value="">Select energy level...</option>
+                            <option value="Very Low">Very Low</option>
+                            <option value="Low">Low</option>
+                            <option value="Medium">Medium</option>
+                            <option value="High">High</option>
+                            <option value="Very High">Very High</option>
+                        </select>
+                    </div>
+
+                    <div class="section-divider"></div>
+
+                    <!-- Sleep (Always required - from last night) -->
+                    <div class="form-group">
+                        <label class="form-label">Sleep Quality (last night)</label>
+                        <select class="form-select" name="Sleep Quality" required>
+                            <option value="">How did you sleep?</option>
+                            <option value="Very Poor">Very Poor</option>
+                            <option value="Poor">Poor</option>
+                            <option value="Fair">Fair</option>
+                            <option value="Good">Good</option>
+                            <option value="Excellent">Excellent</option>
+                        </select>
+                    </div>
+
+                    <div class="section-divider"></div>
+
+                    <!-- Pain (Optional in morning) -->
+                    <div class="form-group">
+                        <label class="form-label field-optional" id="painLabel">Pain Level</label>
+                        <select class="form-select" name="Pain Level" id="painLevel">
+                            <option value="">Select pain level...</option>
+                            <option value="None">None</option>
+                            <option value="Mild">Mild (1-3)</option>
+                            <option value="Moderate">Moderate (4-6)</option>
+                            <option value="Severe">Severe (7-10)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="painLocationGroup" style="display: none;">
+                        <label class="form-label">Pain Location</label>
+                        <div class="checkbox-group">
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="pain-head" name="pain-location" value="Head">
+                                <label for="pain-head">Head</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="pain-neck" name="pain-location" value="Neck">
+                                <label for="pain-neck">Neck</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="pain-back" name="pain-location" value="Back">
+                                <label for="pain-back">Back</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="pain-abdomen" name="pain-location" value="Abdomen">
+                                <label for="pain-abdomen">Abdomen</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="pain-chest" name="pain-location" value="Chest">
+                                <label for="pain-chest">Chest</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="pain-legs" name="pain-location" value="Legs">
+                                <label for="pain-legs">Legs</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="pain-arms" name="pain-location" value="Arms">
+                                <label for="pain-arms">Arms</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="pain-other" name="pain-location" value="Other">
+                                <label for="pain-other">Other</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section-divider"></div>
+
+                    <!-- Symptoms (Optional in morning) -->
+                    <div class="form-group">
+                        <label class="form-label field-optional" id="giLabel">GI Symptoms (select all that apply)</label>
+                        <div class="checkbox-group">
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="gi-none" name="gi-symptoms" value="None" checked>
+                                <label for="gi-none">None</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="gi-bloating" name="gi-symptoms" value="Bloating">
+                                <label for="gi-bloating">Bloating</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="gi-gas" name="gi-symptoms" value="Gas">
+                                <label for="gi-gas">Gas</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="gi-cramping" name="gi-symptoms" value="Cramping">
+                                <label for="gi-cramping">Cramping</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="gi-constipation" name="gi-symptoms" value="Constipation">
+                                <label for="gi-constipation">Constipation</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="gi-diarrhea" name="gi-symptoms" value="Diarrhea">
+                                <label for="gi-diarrhea">Diarrhea</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="gi-nausea" name="gi-symptoms" value="Nausea">
+                                <label for="gi-nausea">Nausea</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="gi-heartburn" name="gi-symptoms" value="Heartburn">
+                                <label for="gi-heartburn">Heartburn</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="gi-indigestion" name="gi-symptoms" value="Indigestion">
+                                <label for="gi-indigestion">Indigestion</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="gi-appetite" name="gi-symptoms" value="Loss of Appetite">
+                                <label for="gi-appetite">Loss of Appetite</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label field-optional" id="symptomsLabel">Other Symptoms (select all that apply)</label>
+                        <div class="checkbox-group">
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="sym-none" name="other-symptoms" value="None" checked>
+                                <label for="sym-none">None</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="sym-headache" name="other-symptoms" value="Headache">
+                                <label for="sym-headache">Headache</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="sym-fatigue" name="other-symptoms" value="Fatigue">
+                                <label for="sym-fatigue">Fatigue</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="sym-dizziness" name="other-symptoms" value="Dizziness">
+                                <label for="sym-dizziness">Dizziness</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="sym-brainfog" name="other-symptoms" value="Brain Fog">
+                                <label for="sym-brainfog">Brain Fog</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="sym-congestion" name="other-symptoms" value="Congestion">
+                                <label for="sym-congestion">Congestion</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="sym-cough" name="other-symptoms" value="Cough">
+                                <label for="sym-cough">Cough</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="sym-sorethroat" name="other-symptoms" value="Sore Throat">
+                                <label for="sym-sorethroat">Sore Throat</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="sym-fever" name="other-symptoms" value="Fever">
+                                <label for="sym-fever">Fever</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="sym-chills" name="other-symptoms" value="Chills">
+                                <label for="sym-chills">Chills</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="sym-sweats" name="other-symptoms" value="Night Sweats">
+                                <label for="sym-sweats">Night Sweats</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section-divider"></div>
+
+                    <!-- Diet & Lifestyle (Optional in morning except Appetite) -->
+                    <div class="form-group">
+                        <label class="form-label">Appetite</label>
+                        <select class="form-select" name="Appetite" required>
+                            <option value="">Select appetite level...</option>
+                            <option value="Very Low">Very Low</option>
+                            <option value="Low">Low</option>
+                            <option value="Normal">Normal</option>
+                            <option value="High">High</option>
+                            <option value="Very High">Very High</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label field-optional" id="waterLabel">Water Intake</label>
+                        <select class="form-select" name="Water Intake" id="waterIntake">
+                            <option value="">How much water so far/today?</option>
+                            <option value="Very Low (<4 cups)">Very Low (<4 cups)</option>
+                            <option value="Low (4-6 cups)">Low (4-6 cups)</option>
+                            <option value="Normal (6-8 cups)">Normal (6-8 cups)</option>
+                            <option value="High (8+ cups)">High (8+ cups)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Stress Level</label>
+                        <select class="form-select" name="Stress Level" required>
+                            <option value="">Select stress level...</option>
+                            <option value="Very Low">Very Low</option>
+                            <option value="Low">Low</option>
+                            <option value="Medium">Medium</option>
+                            <option value="High">High</option>
+                            <option value="Very High">Very High</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label field-optional" id="dietLabel">Diet Quality</label>
+                        <select class="form-select" name="Diet Quality" id="dietQuality">
+                            <option value="">How was your diet?</option>
+                            <option value="Poor">Poor</option>
+                            <option value="Fair">Fair</option>
+                            <option value="Good">Good</option>
+                            <option value="Excellent">Excellent</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label field-optional" id="exerciseLabel">Exercise (select all that apply)</label>
+                        <div class="checkbox-group">
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="ex-none" name="exercise" value="None" checked>
+                                <label for="ex-none">None</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="ex-walk" name="exercise" value="Walking">
+                                <label for="ex-walk">Walking</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="ex-run" name="exercise" value="Running">
+                                <label for="ex-run">Running</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="ex-gym" name="exercise" value="Gym/Weights">
+                                <label for="ex-gym">Gym/Weights</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="ex-yoga" name="exercise" value="Yoga">
+                                <label for="ex-yoga">Yoga</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="ex-swim" name="exercise" value="Swimming">
+                                <label for="ex-swim">Swimming</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="ex-bike" name="exercise" value="Biking">
+                                <label for="ex-bike">Biking</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="ex-sports" name="exercise" value="Sports">
+                                <label for="ex-sports">Sports</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="ex-other" name="exercise" value="Other">
+                                <label for="ex-other">Other</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label field-optional" id="weightLabel">Weight (lbs) - Optional, weigh weekly</label>
+                        <input type="number" class="form-input" name="Weight" min="50" max="500" step="0.1" placeholder="e.g., 165.5">
+                    </div>
+
+                    <div class="section-divider"></div>
+
+                    <!-- Free Text Fields (Optional in morning) -->
+                    <div class="form-group">
+                        <label class="form-label field-optional" id="medsLabel">Medications Taken Today</label>
+                        <textarea class="form-textarea" name="Medications Taken" placeholder="List any medications you took/plan to take..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label field-optional" id="supplementsLabel">Supplements Taken Today</label>
+                        <textarea class="form-textarea" name="Supplements Taken" placeholder="List any supplements you took/plan to take..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-textarea" name="Notes" placeholder="Any additional observations or plans for today..."></textarea>
+                    </div>
+
+                    <div class="section-divider"></div>
+
+                    <!-- Overall Rating (Optional in morning) -->
+                    <div class="form-group">
+                        <label class="form-label field-optional" id="ratingLabel">Overall Day Rating</label>
+                        <div class="rating-group" id="ratingGroup">
+                            <span class="rating-star" data-rating="1">★</span>
+                            <span class="rating-star" data-rating="2">★</span>
+                            <span class="rating-star" data-rating="3">★</span>
+                            <span class="rating-star" data-rating="4">★</span>
+                            <span class="rating-star" data-rating="5">★</span>
+                        </div>
+                        <input type="hidden" name="Overall Day Rating" id="ratingValue">
+                    </div>
+
+                    <button type="submit" class="submit-button" id="submitButton">Get My Plan for Today</button>
+                </form>
             </div>
         </div>
+
+        <!-- Recommendations Section -->
+        <div id="recommendationsSection" class="hidden recommendations-section"></div>
     </div>
-    
-    <div class="form-section">
-        <form id="healthForm">
-            <!-- Instructions box -->
-            <div id="modeInstructions" style="background: #e0e7ff; padding: 15px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #667eea;">
-                <strong id="instructionsTitle">🌅 Morning Check-In</strong>
-                <p id="instructionsText" style="margin: 8px 0 0 0; font-size: 14px;">
-                    Fill in how you're feeling now. Fields marked optional can be skipped - you can update them later in the evening.
-                </p>
-            </div>
 
-            <!-- Mood & Energy (Always required) -->
-            <div class="form-group">
-                <label class="form-label">How's your mood right now?</label>
-                <select class="form-select" name="Mood" required>
-                    <option value="">Select your mood...</option>
-                    <option value="Happy">😊 Happy</option>
-                    <option value="Calm">😌 Calm</option>
-                    <option value="Anxious">😰 Anxious</option>
-                    <option value="Stressed">😣 Stressed</option>
-                    <option value="Sad">😢 Sad</option>
-                    <option value="Irritable">😠 Irritable</option>
-                    <option value="Energized">⚡ Energized</option>
-                    <option value="Mixed">🌀 Mixed</option>
-                </select>
-            </div>
+    <script>
+        let config = {
+            airtableToken: '',
+            airtableBaseId: '',
+            airtableTableName: 'Daily Logs',
+            ouraToken: ''
+        };
+        let ouraData = null;
+        let currentMode = 'morning'; // 'morning' or 'evening'
+        let existingRecordId = null; // Store Airtable record ID for updates
 
-            <div class="form-group">
-                <label class="form-label">Energy Level</label>
-                <select class="form-select" name="Energy Level" required>
-                    <option value="">Select energy level...</option>
-                    <option value="Very Low">Very Low</option>
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
-                    <option value="Very High">Very High</option>
-                </select>
-            </div>
+        // Utility function to escape HTML and prevent XSS
+        function escapeHtml(text) {
+            if (text == null) return '';
+            const div = document.createElement('div');
+            div.textContent = String(text);
+            return div.innerHTML;
+        }
 
-            <div class="section-divider"></div>
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            // Rating stars functionality
+            const stars = document.querySelectorAll('.rating-star');
+            const ratingInput = document.getElementById('ratingValue');
 
-            <!-- Sleep (Always required - from last night) -->
-            <div class="form-group">
-                <label class="form-label">Sleep Quality (last night)</label>
-                <select class="form-select" name="Sleep Quality" required>
-                    <option value="">How did you sleep?</option>
-                    <option value="Very Poor">Very Poor</option>
-                    <option value="Poor">Poor</option>
-                    <option value="Fair">Fair</option>
-                    <option value="Good">Good</option>
-                    <option value="Excellent">Excellent</option>
-                </select>
-            </div>
+            if (stars.length > 0 && ratingInput) {
+                stars.forEach(star => {
+                    star.addEventListener('click', () => {
+                        const rating = star.getAttribute('data-rating');
+                        ratingInput.value = rating;
+                        
+                        stars.forEach(s => {
+                            const starRating = parseInt(s.getAttribute('data-rating'));
+                            if (starRating <= rating) {
+                                s.classList.add('active');
+                            } else {
+                                s.classList.remove('active');
+                            }
+                        });
+                    });
+                });
+            }
 
-            <div class="section-divider"></div>
+            // Pain level conditional display
+            const painLevel = document.getElementById('painLevel');
+            const painLocationGroup = document.getElementById('painLocationGroup');
 
-            <!-- Pain (Optional in morning) -->
-            <div class="form-group">
-                <label class="form-label field-optional" id="painLabel">Pain Level</label>
-                <select class="form-select" name="Pain Level" id="painLevel">
-                    <option value="">Select pain level...</option>
-                    <option value="None">None</option>
-                    <option value="Mild">Mild (1-3)</option>
-                    <option value="Moderate">Moderate (4-6)</option>
-                    <option value="Severe">Severe (7-10)</option>
-                </select>
-            </div>
+            if (painLevel && painLocationGroup) {
+                painLevel.addEventListener('change', () => {
+                    if (painLevel.value && painLevel.value !== 'None') {
+                        painLocationGroup.style.display = 'block';
+                    } else {
+                        painLocationGroup.style.display = 'none';
+                        document.querySelectorAll('input[name="pain-location"]').forEach(cb => cb.checked = false);
+                    }
+                });
+            }
 
-            <div class="form-group" id="painLocationGroup" style="display: none;">
-                <label class="form-label">Pain Location</label>
-                <div class="checkbox-group">
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="pain-head" name="pain-location" value="Head">
-                        <label for="pain-head">Head</label>
+            // Mode selector buttons
+            const morningBtn = document.getElementById('morningModeBtn');
+            const eveningBtn = document.getElementById('eveningModeBtn');
+
+            if (morningBtn) {
+                morningBtn.addEventListener('click', () => selectMode('morning'));
+            }
+            if (eveningBtn) {
+                eveningBtn.addEventListener('click', () => selectMode('evening'));
+            }
+
+            // Initialize morning mode
+            selectMode('morning');
+        });
+
+        function selectMode(mode) {
+            currentMode = mode;
+            
+            const morningBtn = document.getElementById('morningModeBtn');
+            const eveningBtn = document.getElementById('eveningModeBtn');
+            const instructionsTitle = document.getElementById('instructionsTitle');
+            const instructionsText = document.getElementById('instructionsText');
+            const submitButton = document.getElementById('submitButton');
+            const waterIntake = document.getElementById('waterIntake');
+            const painLevel = document.getElementById('painLevel');
+            const dietQuality = document.getElementById('dietQuality');
+            
+            if (!morningBtn || !eveningBtn || !instructionsTitle || !instructionsText || !submitButton) {
+                return; // Elements not available yet
+            }
+            
+            // Update button states
+            morningBtn.classList.toggle('active', mode === 'morning');
+            eveningBtn.classList.toggle('active', mode === 'evening');
+            
+            if (mode === 'morning') {
+                instructionsTitle.textContent = '🌅 Morning Check-In';
+                instructionsText.textContent = 'Fill in how you\'re feeling now. Fields marked optional can be skipped - you can update them later in the evening.';
+                submitButton.textContent = 'Get My Plan for Today';
+                
+                // Make certain fields optional
+                if (waterIntake) waterIntake.removeAttribute('required');
+                if (painLevel) painLevel.removeAttribute('required');
+                if (dietQuality) dietQuality.removeAttribute('required');
+                
+                // Add visual indicators
+                document.querySelectorAll('.field-optional').forEach(el => {
+                    el.style.opacity = '0.6';
+                });
+                
+            } else {
+                instructionsTitle.textContent = '🌙 Evening Update';
+                instructionsText.textContent = 'Update your entry with what actually happened today. This will just save to Airtable without generating new recommendations.';
+                submitButton.textContent = 'Save Evening Update';
+                
+                // Make all fields required for evening
+                if (waterIntake) waterIntake.setAttribute('required', 'required');
+                
+                // Remove visual indicators
+                document.querySelectorAll('.field-optional').forEach(el => {
+                    el.style.opacity = '1';
+                });
+                
+                // Update labels to past tense (using textContent for safety)
+                const waterLabel = document.getElementById('waterLabel');
+                const dietLabel = document.getElementById('dietLabel');
+                const exerciseLabel = document.getElementById('exerciseLabel');
+                const ratingLabel = document.getElementById('ratingLabel');
+                
+                if (waterLabel) waterLabel.textContent = 'Water Intake';
+                if (dietLabel) dietLabel.textContent = 'Diet Quality';
+                if (exerciseLabel) exerciseLabel.textContent = 'Exercise (select all that apply)';
+                if (ratingLabel) ratingLabel.textContent = 'Overall Day Rating';
+            }
+        }
+
+        async function startSession() {
+            const airtableTokenEl = document.getElementById('airtableToken');
+            const airtableBaseIdEl = document.getElementById('airtableBaseId');
+            const airtableTableNameEl = document.getElementById('airtableTableName');
+            const ouraTokenEl = document.getElementById('ouraToken');
+            const configSection = document.getElementById('configSection');
+            const formSection = document.getElementById('formSection');
+
+            if (!airtableTokenEl || !airtableBaseIdEl || !airtableTableNameEl || !configSection || !formSection) {
+                alert('Error: Required form elements not found');
+                return;
+            }
+
+            config.airtableToken = airtableTokenEl.value.trim();
+            config.airtableBaseId = airtableBaseIdEl.value.trim();
+            config.airtableTableName = airtableTableNameEl.value.trim();
+            config.ouraToken = ouraTokenEl ? ouraTokenEl.value.trim() : '';
+
+            if (!config.airtableToken || !config.airtableBaseId || !config.airtableTableName) {
+                alert('Please fill in all required Airtable fields');
+                return;
+            }
+
+            configSection.classList.add('hidden');
+            formSection.classList.remove('hidden');
+
+            if (config.ouraToken) {
+                await fetchOuraData();
+            }
+        }
+
+        async function fetchOuraData() {
+            const ouraSection = document.getElementById('ouraSection');
+            if (!ouraSection) return;
+
+            ouraSection.innerHTML = '<div class="loading-message"><div class="loading-spinner"></div><br>Fetching Oura data...</div>';
+
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                
+                // Call our Netlify serverless function instead of Oura API directly
+                const response = await fetch('/.netlify/functions/fetch-oura', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        ouraToken: config.ouraToken,
+                        date: today
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch Oura data');
+                }
+
+                const data = await response.json();
+                
+                ouraData = {
+                    sleep: data.sleep,
+                    readiness: data.readiness,
+                    activity: data.activity,
+                    sleepHours: data.sleepHours,
+                    steps: data.steps,
+                    lowestRestingHR: data.lowestRestingHR,
+                    activeCalories: data.activeCalories,
+                    dataDate: data.dataDate,
+                    note: data.note
+                };
+
+                displayOuraData();
+            } catch (error) {
+                console.error('Oura fetch error:', error);
+                ouraSection.innerHTML = '<div class="error-message">Could not fetch Oura data. Continuing without it.</div>';
+            }
+        }
+
+        function displayOuraData() {
+            const ouraSection = document.getElementById('ouraSection');
+            if (!ouraSection) return;
+            
+            if (!ouraData || (!ouraData.sleep && !ouraData.readiness && !ouraData.activity)) {
+                ouraSection.innerHTML = '';
+                return;
+            }
+
+            const sleepScore = ouraData.sleep?.score || 'N/A';
+            const sleepHours = ouraData.sleepHours || 'N/A';
+            const readinessScore = ouraData.readiness?.score || 'N/A';
+            const activityScore = ouraData.activity?.score || 'N/A';
+            const steps = ouraData.steps || 'N/A';
+            const lowestHR = ouraData.lowestRestingHR || 'N/A';
+            const activeCal = ouraData.activeCalories || 'N/A';
+
+            const noteHtml = ouraData.note ? 
+                `<div style="background: rgba(255,255,255,0.3); padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 13px;">
+                    ℹ️ ${escapeHtml(ouraData.note)}
+                </div>` : '';
+
+            const dataDateStr = ouraData.dataDate ? escapeHtml(ouraData.dataDate) : '';
+
+            ouraSection.innerHTML = `
+                <div class="oura-summary">
+                    <h3>📱 Oura Ring Data${dataDateStr ? ` (${dataDateStr})` : ''}</h3>
+                    <div class="oura-stats">
+                        <div class="oura-stat">
+                            <div class="oura-stat-label">Sleep Score</div>
+                            <div class="oura-stat-value">${escapeHtml(String(sleepScore))}</div>
+                        </div>
+                        <div class="oura-stat">
+                            <div class="oura-stat-label">Sleep Hours</div>
+                            <div class="oura-stat-value">${escapeHtml(String(sleepHours))}</div>
+                        </div>
+                        <div class="oura-stat">
+                            <div class="oura-stat-label">Readiness</div>
+                            <div class="oura-stat-value">${escapeHtml(String(readinessScore))}</div>
+                        </div>
+                        <div class="oura-stat">
+                            <div class="oura-stat-label">Activity</div>
+                            <div class="oura-stat-value">${escapeHtml(String(activityScore))}</div>
+                        </div>
+                        <div class="oura-stat">
+                            <div class="oura-stat-label">Steps</div>
+                            <div class="oura-stat-value">${escapeHtml(String(steps))}</div>
+                        </div>
+                        <div class="oura-stat">
+                            <div class="oura-stat-label">Lowest Resting HR</div>
+                            <div class="oura-stat-value">${escapeHtml(String(lowestHR))}</div>
+                        </div>
+                        <div class="oura-stat">
+                            <div class="oura-stat-label">Active Calories</div>
+                            <div class="oura-stat-value">${escapeHtml(String(activeCal))}</div>
+                        </div>
                     </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="pain-neck" name="pain-location" value="Neck">
-                        <label for="pain-neck">Neck</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="pain-back" name="pain-location" value="Back">
-                        <label for="pain-back">Back</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="pain-abdomen" name="pain-location" value="Abdomen">
-                        <label for="pain-abdomen">Abdomen</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="pain-chest" name="pain-location" value="Chest">
-                        <label for="pain-chest">Chest</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="pain-legs" name="pain-location" value="Legs">
-                        <label for="pain-legs">Legs</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="pain-arms" name="pain-location" value="Arms">
-                        <label for="pain-arms">Arms</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="pain-other" name="pain-location" value="Other">
-                        <label for="pain-other">Other</label>
-                    </div>
+                    ${noteHtml}
                 </div>
-            </div>
+            `;
+        }
 
-            <div class="section-divider"></div>
+        // Form submission handler
+        const healthForm = document.getElementById('healthForm');
+        if (healthForm) {
+            healthForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const formData = new FormData(e.target);
+                const data = { 
+                    Date: new Date().toISOString().split('T')[0],
+                    'Check-In Type': currentMode === 'morning' ? 'Morning' : 'Evening'
+                };
 
-            <!-- Symptoms (Optional in morning) -->
-            <div class="form-group">
-                <label class="form-label field-optional" id="giLabel">GI Symptoms (select all that apply)</label>
-                <div class="checkbox-group">
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="gi-none" name="gi-symptoms" value="None" checked>
-                        <label for="gi-none">None</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="gi-bloating" name="gi-symptoms" value="Bloating">
-                        <label for="gi-bloating">Bloating</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="gi-gas" name="gi-symptoms" value="Gas">
-                        <label for="gi-gas">Gas</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="gi-cramping" name="gi-symptoms" value="Cramping">
-                        <label for="gi-cramping">Cramping</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="gi-constipation" name="gi-symptoms" value="Constipation">
-                        <label for="gi-constipation">Constipation</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="gi-diarrhea" name="gi-symptoms" value="Diarrhea">
-                        <label for="gi-diarrhea">Diarrhea</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="gi-nausea" name="gi-symptoms" value="Nausea">
-                        <label for="gi-nausea">Nausea</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="gi-heartburn" name="gi-symptoms" value="Heartburn">
-                        <label for="gi-heartburn">Heartburn</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="gi-indigestion" name="gi-symptoms" value="Indigestion">
-                        <label for="gi-indigestion">Indigestion</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="gi-appetite" name="gi-symptoms" value="Loss of Appetite">
-                        <label for="gi-appetite">Loss of Appetite</label>
-                    </div>
-                </div>
-            </div>
+                // Get form values
+                for (let [key, value] of formData.entries()) {
+                    if (!key.includes('-') && key !== 'exercise' && key !== 'gi-symptoms' && 
+                        key !== 'other-symptoms' && key !== 'pain-location') {
+                        data[key] = value;
+                    }
+                }
 
-            <div class="form-group">
-                <label class="form-label field-optional" id="symptomsLabel">Other Symptoms (select all that apply)</label>
-                <div class="checkbox-group">
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="sym-none" name="other-symptoms" value="None" checked>
-                        <label for="sym-none">None</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="sym-headache" name="other-symptoms" value="Headache">
-                        <label for="sym-headache">Headache</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="sym-fatigue" name="other-symptoms" value="Fatigue">
-                        <label for="sym-fatigue">Fatigue</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="sym-dizziness" name="other-symptoms" value="Dizziness">
-                        <label for="sym-dizziness">Dizziness</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="sym-brainfog" name="other-symptoms" value="Brain Fog">
-                        <label for="sym-brainfog">Brain Fog</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="sym-congestion" name="other-symptoms" value="Congestion">
-                        <label for="sym-congestion">Congestion</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="sym-cough" name="other-symptoms" value="Cough">
-                        <label for="sym-cough">Cough</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="sym-sorethroat" name="other-symptoms" value="Sore Throat">
-                        <label for="sym-sorethroat">Sore Throat</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="sym-fever" name="other-symptoms" value="Fever">
-                        <label for="sym-fever">Fever</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="sym-chills" name="other-symptoms" value="Chills">
-                        <label for="sym-chills">Chills</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="sym-sweats" name="other-symptoms" value="Night Sweats">
-                        <label for="sym-sweats">Night Sweats</label>
-                    </div>
-                </div>
-            </div>
+                // Get multi-select values
+                data['Exercise'] = Array.from(document.querySelectorAll('input[name="exercise"]:checked'))
+                    .map(cb => cb.value);
+                
+                data['GI Symptoms'] = Array.from(document.querySelectorAll('input[name="gi-symptoms"]:checked'))
+                    .map(cb => cb.value);
+                
+                data['Other Symptoms'] = Array.from(document.querySelectorAll('input[name="other-symptoms"]:checked'))
+                    .map(cb => cb.value);
+                
+                data['Pain Location'] = Array.from(document.querySelectorAll('input[name="pain-location"]:checked'))
+                    .map(cb => cb.value);
 
-            <div class="section-divider"></div>
+                // Add Oura data
+                if (ouraData) {
+                    data['Oura Sleep Score'] = ouraData.sleep?.score;
+                    data['Oura Sleep Hours'] = ouraData.sleepHours;
+                    data['Oura Readiness Score'] = ouraData.readiness?.score;
+                    data['Oura Activity Score'] = ouraData.activity?.score;
+                    data['Oura Steps'] = ouraData.steps;
+                    data['Oura Lowest Resting HR'] = ouraData.lowestRestingHR;
+                    data['Oura Active Calories'] = ouraData.activeCalories;
+                }
 
-            <!-- Diet & Lifestyle (Optional in morning except Appetite) -->
-            <div class="form-group">
-                <label class="form-label">Appetite</label>
-                <select class="form-select" name="Appetite" required>
-                    <option value="">Select appetite level...</option>
-                    <option value="Very Low">Very Low</option>
-                    <option value="Low">Low</option>
-                    <option value="Normal">Normal</option>
-                    <option value="High">High</option>
-                    <option value="Very High">Very High</option>
-                </select>
-            </div>
+                // Validate rating for evening mode
+                if (currentMode === 'evening') {
+                    if (!data['Overall Day Rating']) {
+                        alert('Please select an overall day rating for your evening update');
+                        return;
+                    }
+                }
 
-            <div class="form-group">
-                <label class="form-label field-optional" id="waterLabel">Water Intake</label>
-                <select class="form-select" name="Water Intake" id="waterIntake">
-                    <option value="">How much water so far/today?</option>
-                    <option value="Very Low (<4 cups)">Very Low (<4 cups)</option>
-                    <option value="Low (4-6 cups)">Low (4-6 cups)</option>
-                    <option value="Normal (6-8 cups)">Normal (6-8 cups)</option>
-                    <option value="High (8+ cups)">High (8+ cups)</option>
-                </select>
-            </div>
+                if (currentMode === 'morning') {
+                    await saveAndGetRecommendations(data);
+                } else {
+                    await saveEveningUpdate(data);
+                }
+            });
+        }
 
-            <div class="form-group">
-                <label class="form-label">Stress Level</label>
-                <select class="form-select" name="Stress Level" required>
-                    <option value="">Select stress level...</option>
-                    <option value="Very Low">Very Low</option>
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
-                    <option value="Very High">Very High</option>
-                </select>
-            </div>
+        async function saveAndGetRecommendations(data) {
+            const recSection = document.getElementById('recommendationsSection');
+            const formSection = document.getElementById('formSection');
+            
+            if (!recSection || !formSection) {
+                alert('Error: Required sections not found');
+                return;
+            }
 
-            <div class="form-group">
-                <label class="form-label field-optional" id="dietLabel">Diet Quality</label>
-                <select class="form-select" name="Diet Quality" id="dietQuality">
-                    <option value="">How was your diet?</option>
-                    <option value="Poor">Poor</option>
-                    <option value="Fair">Fair</option>
-                    <option value="Good">Good</option>
-                    <option value="Excellent">Excellent</option>
-                </select>
-            </div>
+            recSection.classList.remove('hidden');
+            recSection.innerHTML = '<div class="loading-message"><div class="loading-spinner"></div><br>Saving your morning check-in...</div>';
 
-            <div class="form-group">
-                <label class="form-label field-optional" id="exerciseLabel">Exercise (select all that apply)</label>
-                <div class="checkbox-group">
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="ex-none" name="exercise" value="None" checked>
-                        <label for="ex-none">None</label>
+            formSection.classList.add('hidden');
+
+            try {
+                // Save to Airtable
+                const saveResponse = await fetch(`https://api.airtable.com/v0/${config.airtableBaseId}/${encodeURIComponent(config.airtableTableName)}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${config.airtableToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        records: [{ fields: data }]
+                    })
+                });
+
+                if (!saveResponse.ok) {
+                    const errorData = await saveResponse.json();
+                    throw new Error(errorData.error?.message || 'Failed to save to Airtable');
+                }
+
+                const savedRecord = await saveResponse.json();
+                existingRecordId = savedRecord.records[0]?.id || null; // Store for evening update
+
+                recSection.innerHTML = '<div class="success-message">✓ Morning check-in saved!</div>' +
+                    '<div class="loading-message"><div class="loading-spinner"></div><br>Generating your personalized plan for today...</div>';
+
+                // Get recommendations from Claude
+                const recommendationPrompt = `Based on this morning's health check-in data, create a personalized health plan for TODAY.
+
+Morning Check-In Data:
+${JSON.stringify(data, null, 2)}
+
+Provide:
+1. 2-3 specific, actionable recommendations for TODAY based on their current state:
+   - Optimize medication/supplement timing if relevant
+   - Specific exercises or movement suggestions based on energy/pain levels
+   - Dietary recommendations for today
+   - Rest/recovery needs if indicated
+   
+2. Key things to watch for or monitor throughout the day
+
+3. Positive reinforcement - what they're doing well based on their Oura data and inputs
+
+Keep it warm, encouraging, and practical. Focus on what they can do TODAY to optimize their health. This is a MORNING plan, so frame everything as "today you should..." not "you did well..."`;
+
+                const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: 'claude-sonnet-4-20250514',
+                        max_tokens: 1500,
+                        messages: [{
+                            role: 'user',
+                            content: recommendationPrompt
+                        }]
+                    })
+                });
+
+                if (!claudeResponse.ok) {
+                    throw new Error('Failed to get recommendations from Claude');
+                }
+
+                const claudeData = await claudeResponse.json();
+                
+                if (claudeData.content && claudeData.content[0]) {
+                    const recommendations = claudeData.content[0].text;
+                    
+                    recSection.innerHTML = `
+                        <div class="success-message">✓ Morning check-in saved to Airtable!</div>
+                        <div class="recommendation-box">
+                            <h3>🎯 Your Personalized Plan for Today</h3>
+                            <div style="white-space: pre-wrap;">${escapeHtml(recommendations)}</div>
+                        </div>
+                        <button class="new-entry-button" onclick="showEveningUpdateOption()">Update This Entry Tonight</button>
+                        <button class="new-entry-button" style="margin-top: 10px; background: #667eea;" onclick="location.reload()">Start Fresh Tomorrow</button>
+                    `;
+                } else {
+                    throw new Error('Could not generate recommendations');
+                }
+            } catch (error) {
+                recSection.innerHTML = `
+                    <div class="error-message">Error: ${escapeHtml(error.message)}</div>
+                    <button class="new-entry-button" onclick="location.reload()">Try Again</button>
+                `;
+            }
+        }
+
+        async function saveEveningUpdate(data) {
+            const recSection = document.getElementById('recommendationsSection');
+            const formSection = document.getElementById('formSection');
+            
+            if (!recSection || !formSection) {
+                alert('Error: Required sections not found');
+                return;
+            }
+
+            recSection.classList.remove('hidden');
+            recSection.innerHTML = '<div class="loading-message"><div class="loading-spinner"></div><br>Saving your evening update...</div>';
+
+            formSection.classList.add('hidden');
+
+            try {
+                // Check if we have an existing record from morning
+                const today = new Date().toISOString().split('T')[0];
+                
+                let recordToUpdate = existingRecordId;
+                
+                // If we don't have a stored record ID, search for today's morning entry
+                if (!recordToUpdate) {
+                    const searchResponse = await fetch(
+                        `https://api.airtable.com/v0/${config.airtableBaseId}/${encodeURIComponent(config.airtableTableName)}?filterByFormula=AND({Date}='${today}',{Check-In Type}='Morning')`,
+                        {
+                            headers: {
+                                'Authorization': `Bearer ${config.airtableToken}`
+                            }
+                        }
+                    );
+                    
+                    if (searchResponse.ok) {
+                        const searchData = await searchResponse.json();
+                        if (searchData.records && searchData.records.length > 0) {
+                            recordToUpdate = searchData.records[0].id;
+                        }
+                    }
+                }
+
+                let saveResponse;
+                
+                if (recordToUpdate) {
+                    // Update existing morning record
+                    saveResponse = await fetch(
+                        `https://api.airtable.com/v0/${config.airtableBaseId}/${encodeURIComponent(config.airtableTableName)}/${recordToUpdate}`,
+                        {
+                            method: 'PATCH',
+                            headers: {
+                                'Authorization': `Bearer ${config.airtableToken}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                fields: data
+                            })
+                        }
+                    );
+                } else {
+                    // Create new evening-only record
+                    saveResponse = await fetch(
+                        `https://api.airtable.com/v0/${config.airtableBaseId}/${encodeURIComponent(config.airtableTableName)}`,
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${config.airtableToken}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                records: [{ fields: data }]
+                            })
+                        }
+                    );
+                }
+
+                if (!saveResponse.ok) {
+                    const errorData = await saveResponse.json();
+                    throw new Error(errorData.error?.message || 'Failed to save to Airtable');
+                }
+
+                recSection.innerHTML = `
+                    <div class="success-message">✓ Evening update saved to Airtable!</div>
+                    <div style="padding: 30px; text-align: center;">
+                        <p style="font-size: 18px; margin-bottom: 20px;">Your data has been logged. Great job tracking your health today! 🎉</p>
+                        <button class="new-entry-button" onclick="location.reload()">Complete Tomorrow's Morning Check-In</button>
                     </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="ex-walk" name="exercise" value="Walking">
-                        <label for="ex-walk">Walking</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="ex-run" name="exercise" value="Running">
-                        <label for="ex-run">Running</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="ex-gym" name="exercise" value="Gym/Weights">
-                        <label for="ex-gym">Gym/Weights</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="ex-yoga" name="exercise" value="Yoga">
-                        <label for="ex-yoga">Yoga</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="ex-swim" name="exercise" value="Swimming">
-                        <label for="ex-swim">Swimming</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="ex-bike" name="exercise" value="Biking">
-                        <label for="ex-bike">Biking</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="ex-sports" name="exercise" value="Sports">
-                        <label for="ex-sports">Sports</label>
-                    </div>
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="ex-other" name="exercise" value="Other">
-                        <label for="ex-other">Other</label>
-                    </div>
-                </div>
-            </div>
+                `;
+            } catch (error) {
+                recSection.innerHTML = `
+                    <div class="error-message">Error: ${escapeHtml(error.message)}</div>
+                    <button class="new-entry-button" onclick="location.reload()">Try Again</button>
+                `;
+            }
+        }
 
-            <div class="form-group">
-                <label class="form-label field-optional" id="weightLabel">Weight (lbs) - Optional, weigh weekly</label>
-                <input type="number" class="form-input" name="Weight" min="50" max="500" step="0.1" placeholder="e.g., 165.5">
-            </div>
+        function showEveningUpdateOption() {
+            const recSection = document.getElementById('recommendationsSection');
+            const formSection = document.getElementById('formSection');
+            
+            if (!recSection || !formSection) {
+                return;
+            }
 
-            <div class="section-divider"></div>
-
-            <!-- Free Text Fields (Optional in morning) -->
-            <div class="form-group">
-                <label class="form-label field-optional" id="medsLabel">Medications Taken Today</label>
-                <textarea class="form-textarea" name="Medications Taken" placeholder="List any medications you took/plan to take..."></textarea>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label field-optional" id="supplementsLabel">Supplements Taken Today</label>
-                <textarea class="form-textarea" name="Supplements Taken" placeholder="List any supplements you took/plan to take..."></textarea>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Notes</label>
-                <textarea class="form-textarea" name="Notes" placeholder="Any additional observations or plans for today..."></textarea>
-            </div>
-
-            <div class="section-divider"></div>
-
-            <!-- Overall Rating (Optional in morning) -->
-            <div class="form-group">
-                <label class="form-label field-optional" id="ratingLabel">Overall Day Rating</label>
-                <div class="rating-group" id="ratingGroup">
-                    <span class="rating-star" data-rating="1">★</span>
-                    <span class="rating-star" data-rating="2">★</span>
-                    <span class="rating-star" data-rating="3">★</span>
-                    <span class="rating-star" data-rating="4">★</span>
-                    <span class="rating-star" data-rating="5">★</span>
-                </div>
-                <input type="hidden" name="Overall Day Rating" id="ratingValue">
-            </div>
-
-            <button type="submit" class="submit-button" id="submitButton">Get My Plan for Today</button>
-        </form>
-    </div>
-</div>
+            recSection.classList.add('hidden');
+            formSection.classList.remove('hidden');
+            
+            // Switch to evening mode
+            selectMode('evening');
+            
+            // Scroll to top of form
+            formSection.scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>
