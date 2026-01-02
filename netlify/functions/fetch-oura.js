@@ -91,7 +91,7 @@ exports.handler = async function(event, context) {
     ]);
 
     // Fetch activity data (for the day in progress/completed)
-    const activityResponse = await fetchFunction(`https://api.ouraring.com/v2/usercollection/daily_activity?start_date=${activityDate}&end_date=${activityDate}`, {
+    const activityResponse = await fetch(`https://api.ouraring.com/v2/usercollection/daily_activity?start_date=${activityDate}&end_date=${activityDate}`, {
       headers: { 'Authorization': `Bearer ${ouraToken}` }
     });
 
@@ -190,7 +190,7 @@ exports.handler = async function(event, context) {
       const fallbackSleepResponse = await fetch(`https://api.ouraring.com/v2/usercollection/daily_sleep?start_date=${todayDate}&end_date=${todayDate}`, {
         headers: { 'Authorization': `Bearer ${ouraToken}` }
       });
-      const fallbackReadinessResponse = await fetchFunction(`https://api.ouraring.com/v2/usercollection/daily_readiness?start_date=${todayDate}&end_date=${todayDate}`, {
+      const fallbackReadinessResponse = await fetch(`https://api.ouraring.com/v2/usercollection/daily_readiness?start_date=${todayDate}&end_date=${todayDate}`, {
         headers: { 'Authorization': `Bearer ${ouraToken}` }
       });
       
@@ -248,6 +248,10 @@ exports.handler = async function(event, context) {
 
   } catch (error) {
     console.error('Error fetching Oura data:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error name:', error.name);
+    
+    // Return detailed error for debugging
     return {
       statusCode: 500,
       headers: {
@@ -256,7 +260,9 @@ exports.handler = async function(event, context) {
       },
       body: JSON.stringify({ 
         error: 'Failed to fetch Oura data',
-        message: error.message 
+        message: error.message,
+        details: process.env.NETLIFY_DEV ? error.stack : undefined,
+        type: error.name
       })
     };
   }

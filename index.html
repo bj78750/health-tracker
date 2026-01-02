@@ -955,30 +955,54 @@
                 // Pass the current mode so backend knows what data to fetch
                 // Morning: needs yesterday's sleep data (last night)
                 // Evening: needs today's activity data (today's activity)
-                const response = await fetch('/.netlify/functions/fetch-oura', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        ouraToken: config.ouraToken,
-                        mode: currentMode // 'morning' or 'evening'
-                    })
-                });
+                let response;
+                try {
+                    response = await fetch('/.netlify/functions/fetch-oura', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            ouraToken: config.ouraToken,
+                            mode: currentMode // 'morning' or 'evening'
+                        })
+                    });
+                } catch (fetchError) {
+                    // Network error (function not found, CORS, connection refused, etc.)
+                    throw new Error(`Network error: ${fetchError.message}. Make sure the Netlify function is deployed.`);
+                }
 
+                // Always try to parse the response, even if not ok
+                let data;
+                let responseText;
+                try {
+                    responseText = await response.text();
+                } catch (textError) {
+                    throw new Error(`Failed to read response: ${textError.message}`);
+                }
+                
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    let errorMessage = 'Failed to fetch Oura data';
+                    let errorMessage = `HTTP ${response.status} ${response.statusText}: Failed to fetch Oura data`;
                     try {
-                        const errorData = JSON.parse(errorText);
+                        const errorData = JSON.parse(responseText);
                         errorMessage = errorData.error || errorData.message || errorMessage;
+                        if (errorData.message && errorData.message !== errorData.error) {
+                            errorMessage += ' - ' + errorData.message;
+                        }
                     } catch (e) {
-                        errorMessage = errorText || errorMessage;
+                        if (responseText) {
+                            errorMessage = responseText.substring(0, 200);
+                        }
                     }
                     throw new Error(errorMessage);
                 }
-
-                const data = await response.json();
+                
+                // Parse successful response
+                try {
+                    data = JSON.parse(responseText);
+                } catch (e) {
+                    throw new Error('Invalid JSON response from server: ' + responseText.substring(0, 100));
+                }
                 
                 // Check if the response contains an error
                 if (data.error) {
@@ -1000,8 +1024,13 @@
                 displayOuraData();
             } catch (error) {
                 console.error('Oura fetch error:', error);
+                console.error('Error details:', {
+                    message: error.message,
+                    stack: error.stack,
+                    name: error.name
+                });
                 const errorMsg = error.message || 'Unknown error';
-                ouraSection.innerHTML = `<div class="error-message">Could not fetch Oura data: ${escapeHtml(errorMsg)}. Continuing without it.</div>`;
+                ouraSection.innerHTML = `<div class="error-message">Could not fetch Oura data: ${escapeHtml(errorMsg)}. Continuing without it.<br><small style="opacity:0.7;">Check browser console (F12) for details.</small></div>`;
             }
         }
 
