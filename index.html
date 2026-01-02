@@ -383,6 +383,7 @@
         <div class="header">
             <h1>🏥 Daily Health Check-In</h1>
             <p>Quick form entry with AI-powered recommendations</p>
+            <button id="configButton" onclick="showConfig()" style="margin-top: 15px; padding: 8px 16px; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); border-radius: 6px; cursor: pointer; font-size: 13px;">⚙️ Edit Configuration</button>
         </div>
 
         <!-- Configuration Section -->
@@ -796,6 +797,14 @@
 
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', () => {
+            // Load saved configuration
+            loadConfig();
+            
+            // Hide config button initially (will show when form is visible)
+            const configButton = document.getElementById('configButton');
+            if (configButton) {
+                configButton.style.display = 'none';
+            }
             // Rating stars functionality
             const stars = document.querySelectorAll('.rating-star');
             const ratingInput = document.getElementById('ratingValue');
@@ -844,7 +853,7 @@
                 eveningBtn.addEventListener('click', () => selectMode('evening'));
             }
 
-            // Initialize morning mode
+            // Initialize morning mode (this will hide evening-only fields)
             selectMode('morning');
         });
 
@@ -908,9 +917,110 @@
                 if (ratingLabel) ratingLabel.textContent = 'Overall Day Rating';
             }
             
-            // Re-display Oura data if already loaded (to update the display format)
-            if (ouraData) {
-                displayOuraData();
+            // Show/hide evening-only fields
+            // Water Intake
+            const waterGroup = document.getElementById('waterIntake')?.closest('.form-group');
+            // Diet Quality
+            const dietGroup = document.getElementById('dietQuality')?.closest('.form-group');
+            // Exercise (find by label)
+            const exerciseGroup = document.getElementById('exerciseLabel')?.closest('.form-group');
+            // Medications
+            const medsGroup = document.getElementById('medsLabel')?.closest('.form-group');
+            // Supplements
+            const supplementsGroup = document.getElementById('supplementsLabel')?.closest('.form-group');
+            // Overall Day Rating
+            const ratingGroup = document.getElementById('ratingLabel')?.closest('.form-group');
+            
+            const eveningOnlyGroups = [
+                waterGroup,
+                dietGroup,
+                exerciseGroup,
+                medsGroup,
+                supplementsGroup,
+                ratingGroup
+            ].filter(el => el !== null && el !== undefined);
+            
+            if (mode === 'morning') {
+                // Hide evening-only fields in morning mode
+                eveningOnlyGroups.forEach(group => {
+                    if (group) group.style.display = 'none';
+                });
+            } else {
+                // Show evening-only fields in evening mode
+                eveningOnlyGroups.forEach(group => {
+                    if (group) group.style.display = 'block';
+                });
+            }
+        }
+
+        function loadConfig() {
+            // Load config from localStorage
+            try {
+                const savedConfig = localStorage.getItem('healthTrackerConfig');
+                if (savedConfig) {
+                    const parsed = JSON.parse(savedConfig);
+                    config.airtableToken = parsed.airtableToken || '';
+                    config.airtableBaseId = parsed.airtableBaseId || '';
+                    config.airtableTableName = parsed.airtableTableName || 'Daily Logs';
+                    config.ouraToken = parsed.ouraToken || '';
+                    
+                    // Populate form fields if they exist
+                    const airtableTokenEl = document.getElementById('airtableToken');
+                    const airtableBaseIdEl = document.getElementById('airtableBaseId');
+                    const airtableTableNameEl = document.getElementById('airtableTableName');
+                    const ouraTokenEl = document.getElementById('ouraToken');
+                    
+                    if (airtableTokenEl) airtableTokenEl.value = config.airtableToken;
+                    if (airtableBaseIdEl) airtableBaseIdEl.value = config.airtableBaseId;
+                    if (airtableTableNameEl) airtableTableNameEl.value = config.airtableTableName;
+                    if (ouraTokenEl) ouraTokenEl.value = config.ouraToken;
+                    
+                    // If we have all required config, auto-start
+                    if (config.airtableToken && config.airtableBaseId && config.airtableTableName) {
+                        const configSection = document.getElementById('configSection');
+                        const formSection = document.getElementById('formSection');
+                        if (configSection && formSection) {
+                            configSection.classList.add('hidden');
+                            formSection.classList.remove('hidden');
+                            if (config.ouraToken) {
+                                fetchOuraData();
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Error loading config:', e);
+            }
+        }
+
+        function saveConfig() {
+            // Save config to localStorage
+            try {
+                localStorage.setItem('healthTrackerConfig', JSON.stringify({
+                    airtableToken: config.airtableToken,
+                    airtableBaseId: config.airtableBaseId,
+                    airtableTableName: config.airtableTableName,
+                    ouraToken: config.ouraToken
+                }));
+            } catch (e) {
+                console.error('Error saving config:', e);
+            }
+        }
+
+        function showConfig() {
+            // Show config section and hide form
+            const configSection = document.getElementById('configSection');
+            const formSection = document.getElementById('formSection');
+            const configButton = document.getElementById('configButton');
+            
+            if (configSection && formSection) {
+                configSection.classList.remove('hidden');
+                formSection.classList.add('hidden');
+                
+                // Hide config button when in config mode
+                if (configButton) {
+                    configButton.style.display = 'none';
+                }
             }
         }
 
@@ -937,8 +1047,17 @@
                 return;
             }
 
+            // Save config to localStorage
+            saveConfig();
+
             configSection.classList.add('hidden');
             formSection.classList.remove('hidden');
+            
+            // Show config button when form is visible
+            const configButton = document.getElementById('configButton');
+            if (configButton) {
+                configButton.style.display = 'inline-block';
+            }
 
             if (config.ouraToken) {
                 await fetchOuraData();
@@ -952,9 +1071,8 @@
             ouraSection.innerHTML = '<div class="loading-message"><div class="loading-spinner"></div><br>Fetching Oura data...</div>';
 
             try {
-                // Pass the current mode so backend knows what data to fetch
-                // Morning: needs yesterday's sleep data (last night)
-                // Evening: needs today's activity data (today's activity)
+                // Fetch Oura data (static - same for morning and evening)
+                // The backend will fetch today's Sleep Score/Readiness and yesterday's sleep duration/HR
                 let response;
                 try {
                     response = await fetch('/.netlify/functions/fetch-oura', {
@@ -963,8 +1081,8 @@
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            ouraToken: config.ouraToken,
-                            mode: currentMode // 'morning' or 'evening'
+                            ouraToken: config.ouraToken
+                            // No mode needed - always fetch the same data
                         })
                     });
                 } catch (fetchError) {
@@ -1038,18 +1156,17 @@
             const ouraSection = document.getElementById('ouraSection');
             if (!ouraSection) return;
             
-            if (!ouraData || (!ouraData.sleep && !ouraData.readiness && !ouraData.activity)) {
+            if (!ouraData || (!ouraData.sleep && !ouraData.readiness)) {
                 ouraSection.innerHTML = '';
                 return;
             }
 
+            // Static display - same for morning and evening
+            // These scores are for the current day (Sleep/Readiness calculated in morning from last night)
             const sleepScore = ouraData.sleep?.score || 'N/A';
             const sleepHours = ouraData.sleepHours || 'N/A';
             const readinessScore = ouraData.readiness?.score || 'N/A';
-            const activityScore = ouraData.activity?.score || 'N/A';
-            const steps = ouraData.steps || 'N/A';
             const lowestHR = ouraData.lowestRestingHR || 'N/A';
-            const activeCal = ouraData.activeCalories || 'N/A';
 
             const noteHtml = ouraData.note ? 
                 `<div style="background: rgba(255,255,255,0.3); padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 13px;">
@@ -1057,78 +1174,28 @@
                 </div>` : '';
 
             const dataDateStr = ouraData.dataDate ? escapeHtml(ouraData.dataDate) : '';
-            const activityDateStr = ouraData.activityDate ? escapeHtml(ouraData.activityDate) : '';
 
-            // For morning mode, emphasize sleep/readiness data (last night)
-            // For evening mode, emphasize activity data (today's completed activity)
-            const isMorning = currentMode === 'morning';
-            
-            let statsHtml = '';
-            
-            if (isMorning) {
-                // Morning: Show sleep metrics prominently, activity as secondary
-                statsHtml = `
-                    <div class="oura-stat">
-                        <div class="oura-stat-label">Sleep Score</div>
-                        <div class="oura-stat-value">${escapeHtml(String(sleepScore))}</div>
-                    </div>
-                    <div class="oura-stat">
-                        <div class="oura-stat-label">Sleep Hours</div>
-                        <div class="oura-stat-value">${escapeHtml(String(sleepHours))}</div>
-                    </div>
-                    <div class="oura-stat">
-                        <div class="oura-stat-label">Readiness</div>
-                        <div class="oura-stat-value">${escapeHtml(String(readinessScore))}</div>
-                    </div>
-                    <div class="oura-stat">
-                        <div class="oura-stat-label">Lowest Resting HR</div>
-                        <div class="oura-stat-value">${escapeHtml(String(lowestHR))}</div>
-                    </div>
-                `;
-                // Only show activity if it's meaningful (not just starting the day)
-                if (steps !== 'N/A' && parseInt(steps) > 100) {
-                    statsHtml += `
-                        <div class="oura-stat" style="opacity: 0.7;">
-                            <div class="oura-stat-label">Steps (so far)</div>
-                            <div class="oura-stat-value">${escapeHtml(String(steps))}</div>
-                        </div>
-                    `;
-                }
-            } else {
-                // Evening: Show activity metrics prominently, sleep as reference
-                statsHtml = `
-                    <div class="oura-stat">
-                        <div class="oura-stat-label">Activity Score</div>
-                        <div class="oura-stat-value">${escapeHtml(String(activityScore))}</div>
-                    </div>
-                    <div class="oura-stat">
-                        <div class="oura-stat-label">Steps</div>
-                        <div class="oura-stat-value">${escapeHtml(String(steps))}</div>
-                    </div>
-                    <div class="oura-stat">
-                        <div class="oura-stat-label">Active Calories</div>
-                        <div class="oura-stat-value">${escapeHtml(String(activeCal))}</div>
-                    </div>
-                    <div class="oura-stat" style="opacity: 0.7;">
-                        <div class="oura-stat-label">Sleep Score (last night)</div>
-                        <div class="oura-stat-value">${escapeHtml(String(sleepScore))}</div>
-                    </div>
-                    <div class="oura-stat" style="opacity: 0.7;">
-                        <div class="oura-stat-label">Readiness</div>
-                        <div class="oura-stat-value">${escapeHtml(String(readinessScore))}</div>
-                    </div>
-                `;
-            }
-
-            const dateLabel = isMorning 
-                ? (dataDateStr ? `Sleep: ${dataDateStr}` : '')
-                : (activityDateStr ? `Activity: ${activityDateStr}` : '');
-
+            // Static display - always show the same metrics
             ouraSection.innerHTML = `
                 <div class="oura-summary">
-                    <h3>📱 Oura Ring Data${dateLabel ? ` (${dateLabel})` : ''}</h3>
+                    <h3>📱 Oura Ring Data${dataDateStr ? ` (${dataDateStr})` : ''}</h3>
                     <div class="oura-stats">
-                        ${statsHtml}
+                        <div class="oura-stat">
+                            <div class="oura-stat-label">Sleep Score</div>
+                            <div class="oura-stat-value">${escapeHtml(String(sleepScore))}</div>
+                        </div>
+                        <div class="oura-stat">
+                            <div class="oura-stat-label">Sleep Hours</div>
+                            <div class="oura-stat-value">${escapeHtml(String(sleepHours))}</div>
+                        </div>
+                        <div class="oura-stat">
+                            <div class="oura-stat-label">Readiness</div>
+                            <div class="oura-stat-value">${escapeHtml(String(readinessScore))}</div>
+                        </div>
+                        <div class="oura-stat">
+                            <div class="oura-stat-label">Lowest Resting HR</div>
+                            <div class="oura-stat-value">${escapeHtml(String(lowestHR))}</div>
+                        </div>
                     </div>
                     ${noteHtml}
                 </div>
@@ -1168,15 +1235,12 @@
                 data['Pain Location'] = Array.from(document.querySelectorAll('input[name="pain-location"]:checked'))
                     .map(cb => cb.value);
 
-                // Add Oura data
+                // Add Oura data (only the 4 static metrics)
                 if (ouraData) {
                     data['Oura Sleep Score'] = ouraData.sleep?.score;
                     data['Oura Sleep Hours'] = ouraData.sleepHours;
                     data['Oura Readiness Score'] = ouraData.readiness?.score;
-                    data['Oura Activity Score'] = ouraData.activity?.score;
-                    data['Oura Steps'] = ouraData.steps;
                     data['Oura Lowest Resting HR'] = ouraData.lowestRestingHR;
-                    data['Oura Active Calories'] = ouraData.activeCalories;
                 }
 
                 // Validate rating for evening mode
