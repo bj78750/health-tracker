@@ -967,10 +967,23 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error('Failed to fetch Oura data');
+                    const errorText = await response.text();
+                    let errorMessage = 'Failed to fetch Oura data';
+                    try {
+                        const errorData = JSON.parse(errorText);
+                        errorMessage = errorData.error || errorData.message || errorMessage;
+                    } catch (e) {
+                        errorMessage = errorText || errorMessage;
+                    }
+                    throw new Error(errorMessage);
                 }
 
                 const data = await response.json();
+                
+                // Check if the response contains an error
+                if (data.error) {
+                    throw new Error(data.error + (data.message ? ': ' + data.message : ''));
+                }
                 
                 ouraData = {
                     sleep: data.sleep,
@@ -987,7 +1000,8 @@
                 displayOuraData();
             } catch (error) {
                 console.error('Oura fetch error:', error);
-                ouraSection.innerHTML = '<div class="error-message">Could not fetch Oura data. Continuing without it.</div>';
+                const errorMsg = error.message || 'Unknown error';
+                ouraSection.innerHTML = `<div class="error-message">Could not fetch Oura data: ${escapeHtml(errorMsg)}. Continuing without it.</div>`;
             }
         }
 

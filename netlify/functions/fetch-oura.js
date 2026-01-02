@@ -1,6 +1,8 @@
 // netlify/functions/fetch-oura.js
 // Serverless function to fetch Oura data without CORS issues
 
+// Note: Netlify Functions run on Node.js 18+ which has native fetch support
+
 exports.handler = async function(event, context) {
   // Handle CORS preflight requests
   if (event.httpMethod === 'OPTIONS') {
@@ -28,8 +30,23 @@ exports.handler = async function(event, context) {
   }
 
   try {
+    // Parse request body
+    let requestBody;
+    try {
+      requestBody = JSON.parse(event.body);
+    } catch (parseError) {
+      return {
+        statusCode: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        },
+        body: JSON.stringify({ error: 'Invalid JSON in request body', message: parseError.message })
+      };
+    }
+    
     // Get the Oura token and mode from the request
-    const { ouraToken, mode, date } = JSON.parse(event.body);
+    const { ouraToken, mode, date } = requestBody;
 
     if (!ouraToken) {
       return {
@@ -74,16 +91,61 @@ exports.handler = async function(event, context) {
     ]);
 
     // Fetch activity data (for the day in progress/completed)
-    const activityResponse = await fetch(`https://api.ouraring.com/v2/usercollection/daily_activity?start_date=${activityDate}&end_date=${activityDate}`, {
+    const activityResponse = await fetchFunction(`https://api.ouraring.com/v2/usercollection/daily_activity?start_date=${activityDate}&end_date=${activityDate}`, {
       headers: { 'Authorization': `Bearer ${ouraToken}` }
     });
 
-    // Parse responses
-    const sleepData = sleepResponse.ok ? await sleepResponse.json() : null;
-    const readinessData = readinessResponse.ok ? await readinessResponse.json() : null;
-    const activityData = activityResponse.ok ? await activityResponse.json() : null;
-    const sleepTimeData = sleepTimeResponse.ok ? await sleepTimeResponse.json() : null;
-    const heartrateData = heartrateResponse.ok ? await heartrateResponse.json() : null;
+    // Parse responses with error handling
+    let sleepData = null;
+    let readinessData = null;
+    let activityData = null;
+    let sleepTimeData = null;
+    let heartrateData = null;
+    
+    try {
+      sleepData = sleepResponse.ok ? await sleepResponse.json() : null;
+      if (!sleepResponse.ok && sleepResponse.status !== 404) {
+        console.error('Sleep API error:', sleepResponse.status, await sleepResponse.text());
+      }
+    } catch (e) {
+      console.error('Error parsing sleep data:', e);
+    }
+    
+    try {
+      readinessData = readinessResponse.ok ? await readinessResponse.json() : null;
+      if (!readinessResponse.ok && readinessResponse.status !== 404) {
+        console.error('Readiness API error:', readinessResponse.status, await readinessResponse.text());
+      }
+    } catch (e) {
+      console.error('Error parsing readiness data:', e);
+    }
+    
+    try {
+      activityData = activityResponse.ok ? await activityResponse.json() : null;
+      if (!activityResponse.ok && activityResponse.status !== 404) {
+        console.error('Activity API error:', activityResponse.status, await activityResponse.text());
+      }
+    } catch (e) {
+      console.error('Error parsing activity data:', e);
+    }
+    
+    try {
+      sleepTimeData = sleepTimeResponse.ok ? await sleepTimeResponse.json() : null;
+      if (!sleepTimeResponse.ok && sleepTimeResponse.status !== 404) {
+        console.error('Sleep time API error:', sleepTimeResponse.status, await sleepTimeResponse.text());
+      }
+    } catch (e) {
+      console.error('Error parsing sleep time data:', e);
+    }
+    
+    try {
+      heartrateData = heartrateResponse.ok ? await heartrateResponse.json() : null;
+      if (!heartrateResponse.ok && heartrateResponse.status !== 404) {
+        console.error('Heart rate API error:', heartrateResponse.status, await heartrateResponse.text());
+      }
+    } catch (e) {
+      console.error('Error parsing heart rate data:', e);
+    }
 
     // Extract sleep data
     const sleep = sleepData?.data?.[0] || null;
@@ -128,7 +190,7 @@ exports.handler = async function(event, context) {
       const fallbackSleepResponse = await fetch(`https://api.ouraring.com/v2/usercollection/daily_sleep?start_date=${todayDate}&end_date=${todayDate}`, {
         headers: { 'Authorization': `Bearer ${ouraToken}` }
       });
-      const fallbackReadinessResponse = await fetch(`https://api.ouraring.com/v2/usercollection/daily_readiness?start_date=${todayDate}&end_date=${todayDate}`, {
+      const fallbackReadinessResponse = await fetchFunction(`https://api.ouraring.com/v2/usercollection/daily_readiness?start_date=${todayDate}&end_date=${todayDate}`, {
         headers: { 'Authorization': `Bearer ${ouraToken}` }
       });
       
